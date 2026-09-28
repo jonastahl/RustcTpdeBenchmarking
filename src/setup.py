@@ -3,7 +3,7 @@ from src.helper import run_task
 def run_setup():
     # Loading all submodules
     run_task("Loading all submodules",
-             ["git", "submodule", "update", "--init", "--recursive"])
+             ["git", "submodule", "update", "--init", "--remote", "--recursive"])
 
     # Install needed rustc version via cargo
     run_task("Installing needed rustc version",

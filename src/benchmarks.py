@@ -8,17 +8,22 @@ def run_benchmark(config):
                      "./target/release/collector", "bench_local",
                      "--profiles", "Debug",
                      "--scenarios", "Full",
-                     "--include", "helloworld,regex",
+                     "--include", "helloworld",
                      "--id", name,
                      compiler
                  ],
                  cwd="rustc-perf")
 
-    run_task("Spinning up website to compare results",
+    run_task("Printing the results",
              [
-                 "cargo", "run",
-                 "--release",
-                 "-p", "site",
-                 "--",
-                 "--db", "results.db"
-             ])
+                 "sqlite3", "-header", "-column", "results.db",
+                 """
+                 SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value as seconds
+                    FROM artifact a 
+                    JOIN pstat p ON a.id = p.aid 
+                    JOIN pstat_series s ON p.series = s.id 
+                    WHERE s.metric = 'wall-time';
+                 """
+             ],
+             cwd="rustc-perf",
+             print_result=True)
