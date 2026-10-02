@@ -4,7 +4,7 @@ from src.helper import run_task
 def run_benchmark(config):
     run_task("Remove previous results",
              [
-                 "rm", "results.db",
+                 "rm", "-f", "results.db",
              ],
              cwd="rustc-perf")
     for (compiler, name) in config:
