@@ -5,11 +5,6 @@ def run_setup():
     run_task("Loading all submodules",
              ["git", "submodule", "update", "--init", "--remote", "--recursive"])
 
-    # Install needed rustc version via cargo
-    run_task("Installing needed rustc version",
-             ["rustup", "install"],
-             "backend_tpde")
-
     # Building backend
     run_task("Building tpde backend",
              ["cargo", "build", "--release"],
