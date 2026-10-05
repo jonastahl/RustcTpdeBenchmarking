@@ -13,7 +13,7 @@ def run_benchmark(config):
                      "./target/release/collector", "bench_local",
                      "--profiles", "Debug",
                      "--scenarios", "Full",
-                     "--include", "helloworld",
+                     "--include", "helloworld,regex",
                      "--id", name,
                      compiler
                  ],
