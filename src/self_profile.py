@@ -44,17 +44,23 @@ def parse_seconds(text):
 
 
 def event_times(profile):
-    """Inclusive time (the "Time" column of summarize) per event of one profile, in seconds."""
+    """Inclusive time (the "Time" column of summarize) per event of one profile and its
+    total cpu time, in seconds."""
     output = subprocess.run(["summarize", "summarize", str(profile)],
                             capture_output=True, text=True, check=True, env=env).stdout
     times = {}
+    total = 0.0
     for line in output.splitlines():
+        match = re.fullmatch(r"Total cpu time: (.+)", line.strip())
+        if match:
+            total = parse_seconds(match.group(1))
+            continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         # Only the main table has "Self time | % of total time | Time | ..." columns
         if len(cells) < 4 or not re.fullmatch(r"[\d.]+\s*(ns|µs|us|ms|s)", cells[3]):
             continue
         times[cells[0].rstrip(" .")] = parse_seconds(cells[3])
-    return times
+    return times, total
 
 
 def format_seconds(seconds):
@@ -62,15 +68,15 @@ def format_seconds(seconds):
 
 
 def print_table(rows):
-    header = ["", "IR generation", "Obj generation"]
-    table = [header] + [[name, format_seconds(ir), format_seconds(obj)] for name, ir, obj in rows]
-    widths = [max(len(row[i]) for row in table) for i in range(3)]
+    header = ["", "IR generation", "Obj generation", "Total cpu time"]
+    table = [header] + [[name, *map(format_seconds, times)] for name, *times in rows]
+    widths = [max(len(row[i]) for row in table) for i in range(4)]
     separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
 
     print(separator)
     for index, row in enumerate(table):
         print("| " + " | ".join(row[0].ljust(widths[0]) if i == 0 else row[i].rjust(widths[i])
-                                for i in range(3)) + " |")
+                                for i in range(4)) + " |")
         if index == 0:
             print(separator)
     print(separator)
@@ -99,13 +105,14 @@ def run_self_profile():
 
     rows = []
     for name, backend in BACKENDS.items():
-        ir = obj = 0.0
+        ir = obj = total = 0.0
         # Sum over all crates (dependencies included) and all codegen units
         for profile in (BENCH_DIR / f"prof-{name.lower()}").glob("regex_automata-*.mm_profdata"):
-            times = event_times(profile)
+            times, profile_total = event_times(profile)
+            total += profile_total
             ir += sum(times.get(event, 0.0) for event in backend["ir"])
             obj += sum(times.get(event, 0.0) for event in backend["obj"])
-        rows.append((name, ir, obj))
+        rows.append((name, ir, obj, total))
 
     print()
     print_table(rows)
