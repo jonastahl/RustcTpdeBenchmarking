@@ -20,9 +20,21 @@ def run_setup():
              ["cargo", "build", "--release", "-p", "collector"],
              "rustc-perf")
 
-    # Install nightly toolchain
-    run_task("Install nightly toolchain",
-             ["rustup", "toolchain", "install", "nightly"])
-
+    # Install measureme for results of self perf
     run_task("Install self-perf measureme",
              ["cargo", "install", "--git", "https://github.com/rust-lang/measureme", "summarize"])
+
+    # Install the pinned nightly toolchain with cranelift and gcc components
+    run_task("Install nightly toolchain with gcc and cranelift",
+             [
+                 "rustup", "toolchain", "install", "nightly-2026-08-19",
+                 "--component", "rustc-codegen-cranelift",
+                 "--component", "rustc-codegen-gcc",
+             ])
+
+    # Add gcc component
+    run_task("Add gcc component for libgccjit",
+             [
+                 "rustup", "component", "add", "gcc-x86_64-unknown-linux-gnu-preview",
+                 "--toolchain", "nightly-2026-08-19",
+             ])

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from src.benchmarks import run_benchmark
 from src.setup import run_setup
-from self_profile import run_self_profile
+from src.self_profile import run_self_profile
 
 # Download and compile all dependencies
 run_setup()
