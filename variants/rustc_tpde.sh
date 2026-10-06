@@ -2,9 +2,7 @@
 # rustc_tpde.sh
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
-BACKEND_PATH="${SCRIPT_DIR}/../backend_tpde/target/release/librustc_codegen_tpde.so"
+RUSTC_TPDE_PATH="${SCRIPT_DIR}/../backend_tpde/target/release/rustc_tpde"
 
-exec rustc \
-  +nightly-2026-08-19 \
-  -Z codegen-backend="${BACKEND_PATH}" \
+exec $RUSTC_TPDE_PATH \
   "$@"

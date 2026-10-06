@@ -7,11 +7,12 @@ from src.helper import env, run_task
 
 ROOT = Path(__file__).resolve().parent.parent
 BENCH_DIR = ROOT / "rustc-perf/collector/compile-benchmarks/regex-automata-0.4.8"
-BACKEND = ROOT / "backend_tpde/target/release/librustc_codegen_tpde.so"
+BACKEND = ROOT / "backend_tpde/target/release/librustc_codegen_tpde_dylib.so"
+RUSTC_TPDE = ROOT / "backend_tpde/target/release/rustc_tpde"
 TOOLCHAIN = "+nightly-2026-08-19"
 TARGET = "x86_64-unknown-linux-gnu"
 
-# Per backend: the rustc flag selecting it and the self-profile events that make up
+# Per backend: the rustc flag selecting it (and optionally a custom rustc binary) and the self-profile events that make up
 # IR generation and object generation. The times of all listed events are summed up.
 BACKENDS = {
     "LLVM": {
@@ -20,6 +21,12 @@ BACKENDS = {
         "obj": ["LLVM_module_codegen_emit_obj"],
     },
     "TPDE": {
+        "flag": "",
+        "rustc": str(RUSTC_TPDE),
+        "ir": ["codegen_module"],
+        "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "TPDE dynamic": {
         "flag": f"-Zcodegen-backend={BACKEND}",
         "ir": ["codegen_module"],
         "obj": ["TPDE_module_codegen_emit_obj"],
@@ -85,7 +92,7 @@ def print_table(rows):
 def run_self_profile():
     """Self-profile regex-automata-0.4.8 (all crates) with every backend and print a summary table."""
     for name, backend in BACKENDS.items():
-        key = name.lower()
+        key = name.lower().replace(" ", "-")
         target_dir = BENCH_DIR / f"target-prof-{key}"
         prof_dir = BENCH_DIR / f"prof-{key}"
 
@@ -97,6 +104,7 @@ def run_self_profile():
         run_task(f"Self profile on regex-automata-0.4.8 ({name})",
                  [
                      "env", f"RUSTFLAGS={rustflags}",
+                     *([f"RUSTC={backend['rustc']}"] if "rustc" in backend else []),
                      "cargo", TOOLCHAIN, "build", "--lib",
                      "--target", TARGET,
                      "--target-dir", target_dir.name,
@@ -107,7 +115,7 @@ def run_self_profile():
     for name, backend in BACKENDS.items():
         ir = obj = total = 0.0
         # Sum over all crates (dependencies included) and all codegen units
-        for profile in (BENCH_DIR / f"prof-{name.lower()}").glob("regex_automata-*.mm_profdata"):
+        for profile in (BENCH_DIR / f"prof-{name.lower().replace(' ', '-')}").glob("regex_automata-*.mm_profdata"):
             times, profile_total = event_times(profile)
             total += profile_total
             ir += sum(times.get(event, 0.0) for event in backend["ir"])

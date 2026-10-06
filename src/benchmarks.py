@@ -1,5 +1,6 @@
 from src.helper import run_task
 
+COMPILE_TESTS = ["helloworld", "regex"]
 
 def run_benchmark(config):
     run_task("Remove previous results",
@@ -13,7 +14,7 @@ def run_benchmark(config):
                      "./target/release/collector", "bench_local",
                      "--profiles", "Debug",
                      "--scenarios", "Full",
-                     "--include", "helloworld,regex",
+                     "--include", ",".join(COMPILE_TESTS),
                      "--id", name,
                      compiler
                  ],
