@@ -23,3 +23,6 @@ def run_setup():
     # Install nightly toolchain
     run_task("Install nightly toolchain",
              ["rustup", "toolchain", "install", "nightly"])
+
+    run_task("Install self-perf measureme",
+             ["cargo", "install", "--git", "https://github.com/rust-lang/measureme", "summarize"])

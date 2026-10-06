@@ -32,3 +32,8 @@ def run_benchmark(config):
              ],
              cwd="rustc-perf",
              print_result=True)
+
+    run_task("Self profile on regex-automata-0.4.8",
+             ["bash", "../../../../self_profile.sh"],
+             cwd="rustc-perf/collector/compile-benchmarks/regex-automata-0.4.8",
+             print_result=True)
