@@ -2,6 +2,7 @@ from pathlib import Path
 
 from src.benchmarks import run_benchmark
 from src.setup import run_setup
+from self_profile import run_self_profile
 
 # Download and compile all dependencies
 run_setup()
@@ -11,3 +12,6 @@ config = [(f"../variants/{file.name}", file.stem) for file in Path("variants").i
 
 # Run the actual benchmarks
 run_benchmark(config)
+
+# Self profile all crates of regex-automata
+run_self_profile()
