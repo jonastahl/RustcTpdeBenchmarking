@@ -2,7 +2,8 @@ import os
 import shutil
 import subprocess
 import sys
-
+from numbers import Number
+from typing import Dict
 
 # Ensure that the right cargo is used
 env = os.environ.copy()
@@ -57,10 +58,31 @@ def run_task(description, command, cwd=".", print_result=False):
     if process.returncode == 0:
         # Overwrite with green success message
         print(f"\r{CLEAR_LINE}[{GREEN}✔{RESET}] {description}")
+        output = "".join(full_output).strip()
         if print_result:
-            print("".join(full_output).strip())
+            print(output)
+        return output
     else:
         # Overwrite with red failure message and dump the full captured log
         print(f"\r{CLEAR_LINE}[{RED}✖{RESET}] {description}\n")
         print("".join(full_output).strip())
         sys.exit(1)
+
+def format_seconds(seconds):
+    return f"{seconds * 1000:.1f} ms"
+
+def print_table(table: Dict[str, Dict[str, Number]], title = ""):
+    headers = sorted({key for keys in [row.keys() for row in table.values()] for key in keys})
+    rows = sorted({key for key in table.keys()})
+
+    table = [[title, *headers]] + [[row, *map(format_seconds, [table[row][col] for col in headers])] for row in rows]
+    widths = [max(len(row[i]) for row in table) for i in range(len(headers) + 1)]
+    separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+
+    print(separator)
+    for index, row in enumerate(table):
+        print("| " + " | ".join(row[0].ljust(widths[0]) if i == 0 else row[i].rjust(widths[i])
+                                for i in range(len(headers) + 1)) + " |")
+        if index == 0:
+            print(separator)
+    print(separator)

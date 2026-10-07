@@ -3,7 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from src.helper import env, run_task
+from src.helper import env, run_task, print_table
 
 ROOT = Path(__file__).resolve().parent.parent
 BENCH_DIR = ROOT / "rustc-perf/collector/compile-benchmarks/regex-automata-0.4.8"
@@ -43,18 +43,21 @@ BACKENDS = {
     },
 }
 
+HEADER_IR = "IR generation"
+HEADER_OBJ = "Obj generation"
+HEADER_TOTAL = "Total cpu time"
+
 UNITS = {"ns": 1e-9, "µs": 1e-6, "us": 1e-6, "ms": 1e-3, "s": 1.0}
 
 def parse_seconds(text):
     match = re.fullmatch(r"([\d.]+)\s*(ns|µs|us|ms|s)", text.strip())
     return float(match.group(1)) * UNITS[match.group(2)]
 
-
-def event_times(profile):
+def event_times(name, profile):
     """Inclusive time (the "Time" column of summarize) per event of one profile and its
     total cpu time, in seconds."""
-    output = subprocess.run(["summarize", "summarize", str(profile)],
-                            capture_output=True, text=True, check=True, env=env).stdout
+    output = run_task("Fetch self perf results of " + name,
+                      ["summarize", "summarize", str(profile)])
     times = {}
     total = 0.0
     for line in output.splitlines():
@@ -68,26 +71,6 @@ def event_times(profile):
             continue
         times[cells[0].rstrip(" .")] = parse_seconds(cells[3])
     return times, total
-
-
-def format_seconds(seconds):
-    return f"{seconds * 1000:.1f} ms"
-
-
-def print_table(rows):
-    header = ["", "IR generation", "Obj generation", "Total cpu time"]
-    table = [header] + [[name, *map(format_seconds, times)] for name, *times in rows]
-    widths = [max(len(row[i]) for row in table) for i in range(4)]
-    separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
-
-    print(separator)
-    for index, row in enumerate(table):
-        print("| " + " | ".join(row[0].ljust(widths[0]) if i == 0 else row[i].rjust(widths[i])
-                                for i in range(4)) + " |")
-        if index == 0:
-            print(separator)
-    print(separator)
-
 
 def run_self_profile():
     """Self-profile regex-automata-0.4.8 (all crates) with every backend and print a summary table."""
@@ -111,16 +94,15 @@ def run_self_profile():
                  ],
                  cwd=BENCH_DIR)
 
-    rows = []
+    rows = {}
     for name, backend in BACKENDS.items():
         ir = obj = total = 0.0
         # Sum over all crates (dependencies included) and all codegen units
         for profile in (BENCH_DIR / f"prof-{name.lower().replace(' ', '-')}").glob("regex_automata-*.mm_profdata"):
-            times, profile_total = event_times(profile)
+            times, profile_total = event_times(name, profile)
             total += profile_total
             ir += sum(times.get(event, 0.0) for event in backend["ir"])
             obj += sum(times.get(event, 0.0) for event in backend["obj"])
-        rows.append((name, ir, obj, total))
+        rows[name] = {HEADER_IR: ir, HEADER_OBJ: obj, HEADER_TOTAL: total}
 
-    print()
-    print_table(rows)
+    print_table(rows, "Self profile")
