@@ -8,6 +8,7 @@ from src.helper import env, run_task, print_table
 ROOT = Path(__file__).resolve().parent.parent
 BENCH_DIR = ROOT / "rustc-perf/collector/compile-benchmarks/regex-automata-0.4.8"
 BACKEND = ROOT / "backend_tpde/target/release/librustc_codegen_tpde_dylib.so"
+BACKEND_LLVM_TPDE = ROOT / "backend_tpde/target/release/librustc_codegen_llvm_tpde.so"
 RUSTC_TPDE = ROOT / "backend_tpde/target/release/rustc_tpde"
 TOOLCHAIN = "+nightly-2026-08-19"
 TARGET = "x86_64-unknown-linux-gnu"
@@ -30,6 +31,11 @@ BACKENDS = {
         "flag": f"-Zcodegen-backend={BACKEND}",
         "ir": ["codegen_module"],
         "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "LLVM-TPDE dynamic": {
+        "flag": f"-Zcodegen-backend={BACKEND_LLVM_TPDE}",
+        "ir": ["codegen_module"],
+        "obj": ["TPDE_LLVM_module_codegen_emit_obj"]
     },
     "Cranelift": {
         "flag": "-Zcodegen-backend=cranelift",
