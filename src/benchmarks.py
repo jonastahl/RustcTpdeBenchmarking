@@ -7,9 +7,9 @@ from src.helper import run_task, print_table
 COMPILE_TESTS = ["helloworld", "regex"]
 RUNTIME_TESTS = ["brotli"]
 
-# Settings that turn cargo's release profile into the dev profile
 DEV_PROFILE = [
     "opt-level=0",
+    "debug=0",
     "debug-assertions=true",
     "overflow-checks=true",
     "codegen-units=256",

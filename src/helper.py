@@ -10,6 +10,7 @@ env = os.environ.copy()
 cargo_bin = os.path.expanduser("~/.cargo/bin")
 env["PATH"] = f"{cargo_bin}{os.pathsep}{env.get('PATH', '')}"
 env["CARGO_PROFILE_DEV_DEBUG"] = "0"
+env["CARGO_PROFILE_RELEASE_DEBUG"] = "0"
 
 def run_task(description, command, cwd=".", print_result=False):
     # ANSI escape codes for terminal colors and actions
