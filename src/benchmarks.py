@@ -27,7 +27,7 @@ def run_benchmark(config):
              [
                  "rm", "-f", "results.db",
              ],
-             cwd="rustc-perf")
+             cwd="deps/rustc-perf")
     for (compiler, name) in config:
         run_task(f"Running benchmark with compiler {name}",
                  [
@@ -38,7 +38,7 @@ def run_benchmark(config):
                      "--id", name,
                      compiler
                  ],
-                 cwd="rustc-perf")
+                 cwd="deps/rustc-perf")
 
     output = run_task("Reading the results",
              [
@@ -51,7 +51,7 @@ def run_benchmark(config):
                     WHERE s.metric = 'wall-time';
                  """
              ],
-             cwd="rustc-perf")
+             cwd="deps/rustc-perf")
 
     results = parse_results(output)
     print_table(results, "Benchmarks")
