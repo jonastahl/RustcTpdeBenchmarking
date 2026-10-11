@@ -72,6 +72,17 @@ def event_times(name, profile):
         times[cells[0].rstrip(" .")] = parse_seconds(cells[3])
     return times, total
 
+def create_flamegraph(name):
+    """Render the self-profile of the main crate of one backend (all events) to flamegraph-<backend>.svg in the project root."""
+    key = name.lower().replace(" ", "-")
+    prof_dir = BENCH_DIR / f"prof-{key}"
+    profile = max(prof_dir.glob("regex_automata-*.mm_profdata"), key=lambda path: path.stat().st_size)
+    # The flamegraph tool takes the profile path without extension and writes rustc.svg into the cwd
+    run_task(f"Create flamegraph of {name}",
+             ["flamegraph", profile.stem],
+             cwd=prof_dir)
+    shutil.move(prof_dir / "rustc.svg", ROOT / f"flamegraph-{key}.svg")
+
 def run_self_profile():
     """Self-profile regex-automata-0.4.8 (all crates) with every backend and print a summary table."""
     for name, backend in BACKENDS.items():
@@ -106,3 +117,6 @@ def run_self_profile():
         rows[name] = {HEADER_IR: ir, HEADER_OBJ: obj, HEADER_TOTAL: total}
 
     print_table(rows, "Self profile")
+
+    for name in BACKENDS:
+        create_flamegraph(name)

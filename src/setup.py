@@ -20,9 +20,9 @@ def run_setup():
              ["cargo", "build", "--release", "-p", "collector"],
              "rustc-perf")
 
-    # Install measureme for results of self perf
+    # Install measureme for results of self perf (summarize) and the flamegraph of it
     run_task("Install self-perf measureme",
-             ["cargo", "install", "--git", "https://github.com/rust-lang/measureme", "summarize"])
+             ["cargo", "install", "--git", "https://github.com/rust-lang/measureme", "summarize", "flamegraph"])
 
     # Install the pinned nightly toolchain with cranelift and gcc components
     run_task("Install nightly toolchain with gcc and cranelift",
