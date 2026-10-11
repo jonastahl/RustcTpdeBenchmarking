@@ -5,7 +5,6 @@ import math
 from src.helper import run_task, print_table
 
 COMPILE_TESTS = ["helloworld", "regex"]
-RUNTIME_TESTS = ["hashmap"]
 
 DEV_PROFILE = [
     "opt-level=0",
@@ -70,7 +69,6 @@ def run_runtime_benchmark(config):
         run_task(f"Running runtime benchmark with compiler {name}",
                  [
                      "./target/release/collector", "bench_runtime_local",
-                     "--include", ",".join(RUNTIME_TESTS),
                      "--id", name,
                      # Try to resemble debug builds as close as possible
                      *[arg for setting in DEV_PROFILE for arg in ("--cargo-config", f"profile.release.{setting}")],
@@ -90,7 +88,6 @@ def run_runtime_benchmark(config):
                     GROUP BY a.name, s.benchmark;
                  """
              ],
-             cwd="rustc-perf",
-             print_result=True)
+             cwd="rustc-perf")
 
     print_table(parse_results(output), "Runtime")
