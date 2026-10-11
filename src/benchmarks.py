@@ -30,12 +30,13 @@ def parse_results(output):
         results.setdefault(row["compiler"], {})[row["benchmark"]] = float(row["seconds"])
     return results
 
-def run_compiletime_benchmark(config):
-    run_task("Remove previous results",
-             [
-                 "rm", "-f", "results.db",
-             ],
-             cwd="rustc-perf")
+def run_compiletime_benchmark(config, rerun=False):
+    if rerun:
+        run_task("Remove previous results",
+                 [
+                     "rm", "-f", "results.db",
+                 ],
+                 cwd="rustc-perf")
     for (compiler, name) in config:
         run_task(f"Running benchmark with compiler {name}",
                  [

@@ -70,13 +70,15 @@ def run_task(description, command, cwd=".", print_result=False):
         sys.exit(1)
 
 def format_seconds(seconds):
+    if seconds is None:
+        return "- ms"
     return f"{seconds * 1000:.1f} ms"
 
 def print_table(table: Dict[str, Dict[str, Number]], title = ""):
     headers = sorted({key for keys in [row.keys() for row in table.values()] for key in keys})
     rows = sorted({key for key in table.keys()})
 
-    table = [[title, *headers]] + [[row, *map(format_seconds, [table[row][col] for col in headers])] for row in rows]
+    table = [[title, *headers]] + [[row, *map(format_seconds, [table[row].get(col) for col in headers])] for row in rows]
     widths = [max(len(row[i]) for row in table) for i in range(len(headers) + 1)]
     separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
 
