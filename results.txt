@@ -5,63 +5,102 @@
 [✔] Install self-perf measureme
 [✔] Install nightly toolchain with gcc and cranelift
 [✔] Add gcc component for libgccjit
-[✔] Remove previous results
 [✔] Running benchmark with compiler rustc_tpde
 [✔] Running benchmark with compiler rustc_llvm
 [✔] Running benchmark with compiler rustc_cranelift
 [✔] Running benchmark with compiler rustc_tpde_dynamic
 [✔] Running benchmark with compiler rustc_gcc
 [✔] Reading the results
-+--------------------+------------+----------------------+
-| Compiletime        | helloworld | regex-automata-0.4.8 |
-+--------------------+------------+----------------------+
-| rustc_cranelift    |    62.0 ms |            2111.0 ms |
-| rustc_gcc          |   103.7 ms |           11312.9 ms |
-| rustc_llvm         |    62.6 ms |            2105.6 ms |
-| rustc_tpde         |    64.5 ms |            2083.3 ms |
-| rustc_tpde_dynamic |    62.8 ms |            2070.6 ms |
-+--------------------+------------+----------------------+
++--------------------------------+-----------------+------------+------------+------------+--------------------+
+| Compiletime                    | rustc_cranelift |  rustc_gcc | rustc_llvm | rustc_tpde | rustc_tpde_dynamic |
++--------------------------------+-----------------+------------+------------+------------+--------------------+
+| await-call-tree                |         51.9 ms |    78.1 ms |    52.7 ms |    54.7 ms |            54.4 ms |
+| bitmaps-3.2.1                  |        326.9 ms |   472.8 ms |   331.6 ms |   323.6 ms |           328.1 ms |
+| bitmaps-3.2.1-new-solver       |        364.3 ms |   521.2 ms |   368.0 ms |   361.7 ms |           365.9 ms |
+| clap_derive-4.5.32             |        784.6 ms |  4349.4 ms |   797.1 ms |   772.8 ms |           776.7 ms |
+| clap_derive-4.5.32-nll         |        757.1 ms |  4311.1 ms |   762.4 ms |   741.8 ms |           739.5 ms |
+| coercions                      |        283.2 ms |  1068.6 ms |   333.1 ms |   345.3 ms |           357.2 ms |
+| cranelift-codegen-0.119.0      |       6852.4 ms | 40695.1 ms |  6655.9 ms |  6610.2 ms |          6546.6 ms |
+| ctfe-stress-5                  |       2075.6 ms | 12513.8 ms |  2064.7 ms |  2190.6 ms |          2254.5 ms |
+| deep-vector                    |        443.8 ms |   493.7 ms |   446.1 ms |   451.1 ms |           447.3 ms |
+| deeply-nested-multi            |        130.9 ms |   500.3 ms |   129.9 ms |   113.3 ms |           118.1 ms |
+| deeply-nested-multi-new-solver |        146.8 ms |   518.4 ms |   145.6 ms |   129.0 ms |           133.6 ms |
+| derive                         |        447.4 ms |   467.7 ms |   445.5 ms |   457.0 ms |           449.3 ms |
+| diesel-2.2.10                  |       6150.0 ms |  6492.4 ms |  6171.8 ms |  6180.9 ms |          6176.8 ms |
+| diesel-2.2.10-new-solver       |       8654.6 ms |  8945.7 ms |  8663.9 ms |  8691.9 ms |          8667.2 ms |
+| externs                        |        165.5 ms |   182.5 ms |   165.4 ms |   160.9 ms |           167.9 ms |
+| helloworld                     |         61.4 ms |   103.9 ms |    63.7 ms |    57.2 ms |            63.7 ms |
+| html5ever-0.31.0               |        544.9 ms |   974.2 ms |   549.1 ms |   542.8 ms |           548.0 ms |
+| html5ever-0.31.0-new-solver    |        585.2 ms |  1010.7 ms |   577.5 ms |   580.6 ms |           577.6 ms |
+| hyper-1.6.0                    |        899.4 ms |  3211.2 ms |   896.1 ms |   891.6 ms |           890.4 ms |
+| include-blob                   |        486.8 ms |  7402.2 ms |   571.9 ms |  1017.1 ms |          1278.0 ms |
+| issue-46449                    |         62.2 ms |   187.8 ms |    65.2 ms |    52.9 ms |            59.4 ms |
+| issue-58319                    |         85.1 ms |   124.8 ms |    86.9 ms |    81.4 ms |            87.3 ms |
+| issue-88862                    |         98.2 ms |   159.8 ms |   100.6 ms |   103.7 ms |           100.3 ms |
+| large-workspace                |        254.0 ms |   852.2 ms |   246.1 ms |   234.7 ms |           247.1 ms |
+| libc-0.2.172                   |        360.5 ms |   401.4 ms |   357.7 ms |   358.3 ms |           363.4 ms |
+| many-assoc-items               |        439.8 ms |   453.2 ms |   440.6 ms |   448.2 ms |           442.5 ms |
+| match-stress                   |        553.8 ms |   592.6 ms |   571.2 ms |   551.3 ms |           563.7 ms |
+| nalgebra-0.33.0                |       3940.0 ms |  3975.6 ms |  3942.6 ms |  3980.5 ms |          3942.5 ms |
+| nalgebra-0.33.0-new-solver     |       4496.4 ms |  4534.1 ms |  4502.3 ms |  4532.0 ms |          4493.6 ms |
+| projection-caching             |        342.8 ms |   422.3 ms |   340.9 ms |   332.9 ms |           341.0 ms |
+| regex-automata-0.4.8           |       2125.1 ms | 11209.8 ms |  2120.5 ms |  2083.3 ms |          2068.7 ms |
+| regression-31157               |        258.3 ms |  1696.9 ms |   278.3 ms |   240.9 ms |           242.9 ms |
+| ripgrep-14.1.1                 |       1092.4 ms | 11797.1 ms |  1106.0 ms |  1059.1 ms |          1045.6 ms |
+| ripgrep-14.1.1-nll             |       1077.0 ms | 11772.9 ms |  1092.5 ms |  1042.7 ms |          1033.5 ms |
+| serde-1.0.219                  |        858.7 ms |  4369.0 ms |  1684.7 ms |   857.4 ms |           856.7 ms |
+| serde-1.0.219-new-solver       |       1867.1 ms |  5359.1 ms |  1850.3 ms |  1874.0 ms |          1856.8 ms |
+| serde-1.0.219-nll              |       1588.4 ms |  5083.4 ms |  1587.9 ms |  1606.3 ms |          1585.4 ms |
+| serde_derive-1.0.219           |       1358.7 ms |  7918.3 ms |  1415.5 ms |  1330.8 ms |          1326.4 ms |
+| syn-2.0.101                    |       1111.5 ms |  6562.8 ms |  1110.4 ms |  1100.5 ms |          1090.3 ms |
+| syn-2.0.101-new-solver         |       1183.7 ms |  6617.4 ms |  1173.3 ms |  1164.0 ms |          1158.7 ms |
+| token-stream-stress            |         67.1 ms |   115.1 ms |    67.1 ms |    62.1 ms |            68.8 ms |
+| tokio-1.53.1                   |       3341.2 ms | 12589.2 ms |  3297.6 ms |  3312.4 ms |          3292.1 ms |
+| tt-muncher                     |        430.1 ms |  1044.3 ms |   458.4 ms |   402.5 ms |           406.3 ms |
+| tuple-stress                   |       1185.0 ms |  1549.1 ms |  1182.0 ms |  1208.7 ms |          1202.1 ms |
+| typenum-1.18.0                 |        454.5 ms |   472.4 ms |   452.3 ms |   455.6 ms |           455.5 ms |
+| typenum-1.18.0-new-solver      |        874.4 ms |   897.4 ms |   872.7 ms |   881.4 ms |           877.9 ms |
+| ucd                            |       2127.2 ms |  2951.4 ms |  2120.7 ms |  2118.9 ms |          2105.0 ms |
+| unicode-normalization-0.1.24   |        269.3 ms |   404.4 ms |   273.7 ms |   266.5 ms |           270.8 ms |
+| unify-linearly                 |         84.9 ms |   122.2 ms |    86.6 ms |    78.6 ms |            82.3 ms |
+| unused-warnings                |        223.7 ms |   255.2 ms |   221.2 ms |   217.3 ms |           224.5 ms |
+| wf-projection-stress-65510     |         49.8 ms |    67.1 ms |    49.8 ms |    46.7 ms |            52.4 ms |
+| wg-grammar                     |        915.3 ms |   985.3 ms |   909.3 ms |   909.5 ms |           906.9 ms |
+| wg-grammar-new-solver          |       1083.3 ms |  1152.5 ms |  1086.2 ms |  1084.6 ms |          1081.4 ms |
++--------------------------------+-----------------+------------+------------+------------+--------------------+
+| Average                        |       1216.5 ms |  3792.6 ms |  1232.9 ms |  1221.8 ms |          1224.0 ms |
++--------------------------------+-----------------+------------+------------+------------+--------------------+
 [✔] Running runtime benchmark with compiler rustc_tpde
 [✔] Running runtime benchmark with compiler rustc_llvm
 [✔] Running runtime benchmark with compiler rustc_cranelift
 [✔] Running runtime benchmark with compiler rustc_tpde_dynamic
 [✔] Running runtime benchmark with compiler rustc_gcc
 [✔] Reading the runtime results
-compiler,benchmark,seconds
-rustc_cranelift,hashmap_find_1m,0.473608865
-rustc_cranelift,hashmap_find_misses_1m,0.395314428
-rustc_cranelift,hashmap_insert_1m,0.405343758
-rustc_cranelift,hashmap_iterate_1m,0.066421779
-rustc_cranelift,hashmap_remove_1m,0.854853955
-rustc_gcc,hashmap_find_1m,0.611528155
-rustc_gcc,hashmap_find_misses_1m,0.480543231
-rustc_gcc,hashmap_insert_1m,0.531467514
-rustc_gcc,hashmap_iterate_1m,0.106009635
-rustc_gcc,hashmap_remove_1m,1.09502989
-rustc_llvm,hashmap_find_1m,0.38445281
-rustc_llvm,hashmap_find_misses_1m,0.227556154
-rustc_llvm,hashmap_insert_1m,0.272388496
-rustc_llvm,hashmap_iterate_1m,0.044687955
-rustc_llvm,hashmap_remove_1m,0.608523686
-rustc_tpde,hashmap_find_1m,0.413011367
-rustc_tpde,hashmap_find_misses_1m,0.30377633
-rustc_tpde,hashmap_insert_1m,0.336377611
-rustc_tpde,hashmap_iterate_1m,0.050765476
-rustc_tpde,hashmap_remove_1m,0.734158128
-rustc_tpde_dynamic,hashmap_find_1m,0.404784785
-rustc_tpde_dynamic,hashmap_find_misses_1m,0.302460703
-rustc_tpde_dynamic,hashmap_insert_1m,0.332073983
-rustc_tpde_dynamic,hashmap_iterate_1m,0.05098929
-rustc_tpde_dynamic,hashmap_remove_1m,0.730324793
-+--------------------+-----------------+------------------------+-------------------+--------------------+-------------------+
-| Runtime            | hashmap_find_1m | hashmap_find_misses_1m | hashmap_insert_1m | hashmap_iterate_1m | hashmap_remove_1m |
-+--------------------+-----------------+------------------------+-------------------+--------------------+-------------------+
-| rustc_cranelift    |        473.6 ms |               395.3 ms |          405.3 ms |            66.4 ms |          854.9 ms |
-| rustc_gcc          |        611.5 ms |               480.5 ms |          531.5 ms |           106.0 ms |         1095.0 ms |
-| rustc_llvm         |        384.5 ms |               227.6 ms |          272.4 ms |            44.7 ms |          608.5 ms |
-| rustc_tpde         |        413.0 ms |               303.8 ms |          336.4 ms |            50.8 ms |          734.2 ms |
-| rustc_tpde_dynamic |        404.8 ms |               302.5 ms |          332.1 ms |            51.0 ms |          730.3 ms |
-+--------------------+-----------------+------------------------+-------------------+--------------------+-------------------+
++------------------------+-----------------+------------+------------+------------+--------------------+
+| Runtime                | rustc_cranelift |  rustc_gcc | rustc_llvm | rustc_tpde | rustc_tpde_dynamic |
++------------------------+-----------------+------------+------------+------------+--------------------+
+| brotli-compress        |       6133.0 ms | 10048.0 ms |  4312.3 ms |       - ms |               - ms |
+| brotli-decompress      |       1548.3 ms |  3247.7 ms |  1504.6 ms |       - ms |               - ms |
+| bufreader_snappy       |        491.3 ms |   615.5 ms |   385.5 ms |   511.1 ms |           502.2 ms |
+| css-parse-fb           |       1778.6 ms |  2915.4 ms |  1544.0 ms |       - ms |               - ms |
+| fmt-debug-derive       |        585.7 ms |   759.4 ms |   680.9 ms |   598.3 ms |           597.8 ms |
+| fmt-write-str          |       1297.6 ms |  1725.2 ms |  1464.4 ms |  1397.9 ms |          1385.9 ms |
+| hashmap_find_1m        |        471.4 ms |   610.9 ms |   383.4 ms |   420.7 ms |           419.6 ms |
+| hashmap_find_misses_1m |        395.1 ms |   480.8 ms |   223.4 ms |   303.9 ms |           307.0 ms |
+| hashmap_insert_1m      |        403.4 ms |   531.1 ms |   272.3 ms |   334.5 ms |           337.0 ms |
+| hashmap_iterate_1m     |         66.3 ms |   105.8 ms |    44.5 ms |    55.6 ms |            53.8 ms |
+| hashmap_remove_1m      |        853.4 ms |  1095.4 ms |   607.0 ms |   731.1 ms |           729.0 ms |
+| nbody_5k               |       5807.6 ms | 16896.6 ms |  5155.1 ms | 11461.7 ms |         11443.9 ms |
+| nom-json               |       3109.3 ms |  6443.5 ms |  2748.0 ms |  3395.6 ms |          3378.0 ms |
+| pinky-nes15            |       5932.1 ms | 11264.7 ms |  4818.8 ms |  5357.6 ms |          5357.6 ms |
+| raytracer              |       3317.2 ms | 16475.9 ms |  4108.0 ms |  6082.4 ms |          6079.3 ms |
+| regex-capture-1        |        258.5 ms |   262.1 ms |   246.0 ms |   234.7 ms |           234.7 ms |
+| regex-search-1         |        156.1 ms |   217.2 ms |   110.4 ms |   121.6 ms |           121.7 ms |
+| svg-parse-1            |       6294.4 ms | 12333.3 ms |  5893.7 ms |  5635.5 ms |          5613.1 ms |
+| svg-render-1           |       2489.2 ms |  3542.8 ms |  2488.5 ms |  2933.3 ms |          2933.7 ms |
++------------------------+-----------------+------------+------------+------------+--------------------+
+| Average                |       2178.3 ms |  4714.3 ms |  1946.9 ms |  2473.5 ms |          2468.4 ms |
++------------------------+-----------------+------------+------------+------------+--------------------+
 [✔] Self profile on regex-automata-0.4.8 (LLVM)
 [✔] Self profile on regex-automata-0.4.8 (TPDE)
 [✔] Self profile on regex-automata-0.4.8 (TPDE dynamic)
@@ -72,15 +111,15 @@ rustc_tpde_dynamic,hashmap_remove_1m,0.730324793
 [✔] Fetch self perf results of TPDE dynamic
 [✔] Fetch self perf results of Cranelift
 [✔] Fetch self perf results of GCC
-+--------------+---------------+----------------+----------------+
-| Self profile | IR generation | Obj generation | Total cpu time |
-+--------------+---------------+----------------+----------------+
-| Cranelift    |      270.8 ms |       661.7 ms |      4081.7 ms |
-| GCC          |      552.7 ms |     11460.0 ms |     38571.2 ms |
-| LLVM         |      269.7 ms |       912.5 ms |      4480.9 ms |
-| TPDE         |      213.2 ms |        97.5 ms |      3427.8 ms |
-| TPDE dynamic |      205.5 ms |       106.7 ms |      3401.9 ms |
-+--------------+---------------+----------------+----------------+
++----------------+-----------+------------+-----------+-----------+--------------+
+| Self profile   | Cranelift |        GCC |      LLVM |      TPDE | TPDE dynamic |
++----------------+-----------+------------+-----------+-----------+--------------+
+| IR generation  |  273.3 ms |   553.9 ms |  270.8 ms |  213.7 ms |     205.3 ms |
+| Obj generation |  663.7 ms | 11420.0 ms |  911.3 ms |   97.4 ms |     106.5 ms |
+| Total cpu time | 4104.7 ms | 38475.7 ms | 4495.5 ms | 3431.3 ms |    3397.3 ms |
++----------------+-----------+------------+-----------+-----------+--------------+
+| Average        | 1680.6 ms | 16816.5 ms | 1892.5 ms | 1247.5 ms |    1236.4 ms |
++----------------+-----------+------------+-----------+-----------+--------------+
 [✔] Create flamegraph of LLVM
 [✔] Create flamegraph of TPDE
 [✔] Create flamegraph of TPDE dynamic
