@@ -4,7 +4,7 @@ import math
 
 from src.helper import run_task, print_table
 
-COMPILE_TESTS = ["helloworld", "regex"]
+EX_COMPILE_TESTS = ["cargo", "eza", "image"]
 
 DEV_PROFILE = [
     "opt-level=0",
@@ -42,7 +42,7 @@ def run_compiletime_benchmark(config):
                      "./target/release/collector", "bench_local",
                      "--profiles", "Debug",
                      "--scenarios", "Full",
-                     "--include", ",".join(COMPILE_TESTS),
+                     "--exclude", ",".join(EX_COMPILE_TESTS),
                      "--id", name,
                      compiler
                  ],
