@@ -5,7 +5,7 @@ import math
 from src.helper import run_task, print_table
 
 COMPILE_TESTS = ["helloworld", "regex"]
-RUNTIME_TESTS = ["brotli"]
+RUNTIME_TESTS = ["hashmap"]
 
 DEV_PROFILE = [
     "opt-level=0",
