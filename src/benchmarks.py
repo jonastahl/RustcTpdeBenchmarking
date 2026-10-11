@@ -4,7 +4,7 @@ import math
 
 from src.helper import run_task, print_table
 
-EX_COMPILE_TESTS = ["cargo", "eza", "image"]
+EX_COMPILE_TESTS = ["cargo", "eza", "image", "stm32"]
 
 DEV_PROFILE = [
     "opt-level=0",
