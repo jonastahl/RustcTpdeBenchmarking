@@ -78,12 +78,20 @@ def print_table(table: Dict[str, Dict[str, Number]], title = ""):
     headers = sorted(table.keys())
     rows = sorted({key for column in table.values() for key in column})
 
-    table = [[title, *headers]] + [[row, *map(format_seconds, [table[col].get(row) for col in headers])] for row in rows]
+    def average(col):
+        values = [v for v in (table[col].get(row) for row in rows) if v is not None]
+        return sum(values) / len(values) if values else None
+
+    table = ([[title, *headers]]
+             + [[row, *map(format_seconds, [table[col].get(row) for col in headers])] for row in rows]
+             + [["Average", *map(format_seconds, [average(col) for col in headers])]])
     widths = [max(len(row[i]) for row in table) for i in range(len(headers) + 1)]
     separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
 
     print(separator)
     for index, row in enumerate(table):
+        if index == len(table) - 1:
+            print(separator)
         print("| " + " | ".join(row[0].ljust(widths[0]) if i == 0 else row[i].rjust(widths[i])
                                 for i in range(len(headers) + 1)) + " |")
         if index == 0:
