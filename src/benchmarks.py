@@ -73,7 +73,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                       [
                           "sqlite3", "-header", "-csv", db,
                           """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value as seconds
+                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
                           FROM artifact a
                                    JOIN pstat p ON a.id = p.aid
                                    JOIN pstat_series s ON p.series = s.id
@@ -89,7 +89,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                       [
                           "sqlite3", "-header", "-csv", db,
                           """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value as seconds
+                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
                           FROM artifact a
                                    JOIN pstat p ON a.id = p.aid
                                    JOIN pstat_series s ON p.series = s.id
