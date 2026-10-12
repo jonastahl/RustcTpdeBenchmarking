@@ -4,7 +4,9 @@ import math
 
 from src.helper import run_task, print_table
 
+# they all contain so far unsupported asm code
 EX_COMPILE_TESTS = ["cargo", "eza", "image", "stm32"]
+EX_RUNTIME_TESTS = ["css"]
 
 DEV_PROFILE = [
     "opt-level=0",
@@ -30,28 +32,30 @@ def parse_results(output):
         results.setdefault(row["compiler"], {})[row["benchmark"]] = float(row["seconds"])
     return results
 
-def run_compiletime_benchmark(config, rerun=False):
+def run_compiletime_benchmark(config, rerun=False, db="results.db", cargo_configs=()):
     if rerun:
         run_task("Remove previous results",
                  [
-                     "rm", "-f", "results.db",
+                     "rm", "-f", db,
                  ],
                  cwd="rustc-perf")
     for (compiler, name) in config:
         run_task(f"Running benchmark with compiler {name}",
                  [
                      "./target/release/collector", "bench_local",
+                     "--db", db,
                      "--profiles", "Debug",
                      "--scenarios", "Full",
                      "--exclude", ",".join(EX_COMPILE_TESTS),
                      "--id", name,
+                     *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
                      compiler
                  ],
                  cwd="rustc-perf")
 
     output = run_task("Reading the results",
              [
-                 "sqlite3", "-header", "-csv", "results.db",
+                 "sqlite3", "-header", "-csv", db,
                  """
                  SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value as seconds
                     FROM artifact a 

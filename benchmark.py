@@ -20,6 +20,9 @@ def main():
     # Run the actual benchmarks
     run_compiletime_benchmark(config, rerun=args.rerun)
 
+    # Run benchmarks with cgu = 1
+    run_compiletime_benchmark(config, db="results_1.db", cargo_configs=["profile.dev.codegen-units=1"])
+
     # Measure the runtime performance of the generated code
     run_runtime_benchmark(config)
 
