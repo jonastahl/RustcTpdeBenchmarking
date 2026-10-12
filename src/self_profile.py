@@ -106,6 +106,7 @@ def run_self_profile(rerun=False):
                  ],
                  cwd=BENCH_DIR)
 
+def self_profile_results():
     rows = {}
     for name, backend in BACKENDS.items():
         ir = obj = total = 0.0

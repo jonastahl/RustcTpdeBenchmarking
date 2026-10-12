@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+from results import results
 from src.benchmarks import run_compiletime_benchmark, run_runtime_benchmark
 from src.setup import run_setup
 from src.self_profile import run_self_profile
@@ -29,6 +30,7 @@ def main():
     # Self profile all crates of regex-automata
     run_self_profile(rerun=args.rerun)
 
+    results()
 
 if __name__ == '__main__':
     main()

@@ -53,6 +53,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                  ],
                  cwd="rustc-perf")
 
+def compiletime_results(db="results.db", suffix = ""):
     output = run_task("Reading the results (wall-time)",
              [
                  "sqlite3", "-header", "-csv", db,
@@ -113,6 +114,7 @@ def run_runtime_benchmark(config):
                  ],
                  cwd="rustc-perf")
 
+def runtime_results():
     output = run_task("Reading the runtime results",
              [
                  "sqlite3", "-header", "-csv", "results.db",
