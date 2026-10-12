@@ -83,7 +83,7 @@ def create_flamegraph(name):
              cwd=prof_dir)
     shutil.move(prof_dir / "rustc.svg", ROOT / f"flamegraph-{key}.svg")
 
-def run_self_profile():
+def run_self_profile(rerun=False):
     """Self-profile regex-automata-0.4.8 (all crates) with every backend and print a summary table."""
     for name, backend in BACKENDS.items():
         key = name.lower().replace(" ", "-")
@@ -91,8 +91,9 @@ def run_self_profile():
         prof_dir = BENCH_DIR / f"prof-{key}"
 
         # Start from scratch so that every crate is compiled and profiled
-        shutil.rmtree(target_dir, ignore_errors=True)
-        shutil.rmtree(prof_dir, ignore_errors=True)
+        if rerun:
+            shutil.rmtree(target_dir, ignore_errors=True)
+            shutil.rmtree(prof_dir, ignore_errors=True)
 
         rustflags = f"-Znext-solver=coherence {backend['flag']} -Zself-profile={prof_dir.name}"
         run_task(f"Self profile on regex-automata-0.4.8 ({name})",

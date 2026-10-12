@@ -27,7 +27,7 @@ def main():
     run_runtime_benchmark(config)
 
     # Self profile all crates of regex-automata
-    run_self_profile()
+    run_self_profile(rerun=args.rerun)
 
 
 if __name__ == '__main__':
