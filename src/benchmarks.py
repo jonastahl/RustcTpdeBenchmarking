@@ -1,6 +1,6 @@
 import csv
 import io
-import math
+import statistics
 
 from src.helper import run_task, print_table
 
@@ -31,11 +31,16 @@ COMPILER_NAMES = {
 
 
 def parse_results(output):
-    """Parse the csv output of the results query into {compiler: {benchmark: (min, median)}} in seconds."""
-    results = {}
+    """Parse the csv output of the results query into {compiler: {benchmark: (min, median)}} in seconds.
+
+    The query returns one row per iteration, so all samples of a benchmark are reduced here."""
+    samples = {}
     for row in csv.DictReader(io.StringIO(output)):
-        results.setdefault(row["compiler"], {})[row["benchmark"]] = (float(row["min"]), float(row["median"]))
-    return results
+        samples.setdefault(row["compiler"], {}).setdefault(row["benchmark"], []).append(float(row["seconds"]))
+    return {
+        compiler: {benchmark: (min(values), statistics.median(values)) for benchmark, values in benchmarks.items()}
+        for compiler, benchmarks in samples.items()
+    }
 
 def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=()):
     if rerun:
@@ -64,13 +69,11 @@ def compiletime_results(db="results.db", suffix = ""):
              [
                  "sqlite3", "-header", "-csv", db,
                  """
-                 SELECT a.name as compiler, s.crate as benchmark, s.profile,
-                           MIN(p.value) as min, median(p.value) as median
+                 SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value as seconds
                     FROM artifact a 
                     JOIN pstat p ON a.id = p.aid 
                     JOIN pstat_series s ON p.series = s.id 
-                    WHERE s.metric = 'wall-time'
-                    GROUP BY a.name, s.crate, s.profile;
+                    WHERE s.metric = 'wall-time';
                  """
              ],
              cwd="rustc-perf")
@@ -82,13 +85,11 @@ def compiletime_results(db="results.db", suffix = ""):
                       [
                           "sqlite3", "-header", "-csv", db,
                           """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile,
-                                 MIN(p.value) / 1000 as min, median(p.value) / 1000 as median
+                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
                           FROM artifact a
                                    JOIN pstat p ON a.id = p.aid
                                    JOIN pstat_series s ON p.series = s.id
-                          WHERE s.metric = 'cpu-clock'
-                          GROUP BY a.name, s.crate, s.profile;
+                          WHERE s.metric = 'cpu-clock';
                           """
                       ],
                       cwd="rustc-perf")
@@ -100,13 +101,11 @@ def compiletime_results(db="results.db", suffix = ""):
                       [
                           "sqlite3", "-header", "-csv", db,
                           """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile,
-                                 MIN(p.value) / 1000 as min, median(p.value) / 1000 as median
+                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
                           FROM artifact a
                                    JOIN pstat p ON a.id = p.aid
                                    JOIN pstat_series s ON p.series = s.id
-                          WHERE s.metric = 'task-clock'
-                          GROUP BY a.name, s.crate, s.profile;
+                          WHERE s.metric = 'task-clock';
                           """
                       ],
                       cwd="rustc-perf")
@@ -132,13 +131,11 @@ def runtime_results():
              [
                  "sqlite3", "-header", "-csv", "results.db",
                  """
-                 SELECT a.name AS compiler, s.benchmark AS benchmark,
-                           MIN(p.value) / 1e9 AS min, median(p.value) / 1e9 AS median
+                 SELECT a.name AS compiler, s.benchmark AS benchmark, p.value / 1e9 AS seconds
                     FROM artifact a
                     JOIN runtime_pstat p ON a.id = p.aid
                     JOIN runtime_pstat_series s ON p.series = s.id
-                    WHERE s.metric = 'wall-time'
-                    GROUP BY a.name, s.benchmark;
+                    WHERE s.metric = 'wall-time';
                  """
              ],
              cwd="rustc-perf")

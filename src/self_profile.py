@@ -21,12 +21,6 @@ BACKENDS = {
         "obj": ["LLVM_module_codegen_emit_obj"],
     },
     "TPDE": {
-        "flag": "",
-        "rustc": str(RUSTC_TPDE),
-        "ir": ["codegen_module"],
-        "obj": ["TPDE_module_codegen_emit_obj"],
-    },
-    "TPDE dynamic": {
         "flag": f"-Zcodegen-backend={BACKEND}",
         "ir": ["codegen_module"],
         "obj": ["TPDE_module_codegen_emit_obj"],
@@ -35,11 +29,6 @@ BACKENDS = {
         "flag": "-Zcodegen-backend=cranelift",
         "ir": ["codegen cgu"],
         "obj": ["compile functions", "compile assembly", "write object file"],
-    },
-    "GCC": {
-        "flag": "-Zcodegen-backend=gcc",
-        "ir": ["codegen_module"],
-        "obj": ["GCC_module_codegen_emit_obj"],
     },
 }
 
