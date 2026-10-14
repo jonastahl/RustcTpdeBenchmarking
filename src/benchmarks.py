@@ -8,6 +8,8 @@ from src.helper import run_task, print_table
 EX_COMPILE_TESTS = ["cargo", "eza", "image", "stm32"]
 EX_RUNTIME_TESTS = ["css"]
 
+COMPILE_TESTS = ["diesel-2.2.10-new-solver", "nalgebra-0.33.0-new-solver", "ripgrep-14.1.1", "tokio-1.53.1"]
+
 COMPILE_ITERATIONS = 5
 RUNTIME_ITERATIONS = 5
 
@@ -50,7 +52,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "--profiles", "Debug",
                      "--scenarios", "Full",
                      "--iterations", str(COMPILE_ITERATIONS),
-                     "--exclude", ",".join(EX_COMPILE_TESTS),
+                     "--include", ",".join(COMPILE_TESTS),
                      "--id", name,
                      *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
                      compiler
