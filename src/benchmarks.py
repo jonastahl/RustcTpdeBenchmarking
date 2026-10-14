@@ -8,6 +8,9 @@ from src.helper import run_task, print_table
 EX_COMPILE_TESTS = ["cargo", "eza", "image", "stm32"]
 EX_RUNTIME_TESTS = ["css"]
 
+COMPILE_ITERATIONS = 5
+RUNTIME_ITERATIONS = 5
+
 DEV_PROFILE = [
     "opt-level=0",
     "debug=0",
@@ -26,10 +29,10 @@ COMPILER_NAMES = {
 
 
 def parse_results(output):
-    """Parse the csv output of the results query into {compiler: {benchmark: seconds}}."""
+    """Parse the csv output of the results query into {compiler: {benchmark: (min, median)}} in seconds."""
     results = {}
     for row in csv.DictReader(io.StringIO(output)):
-        results.setdefault(row["compiler"], {})[row["benchmark"]] = float(row["seconds"])
+        results.setdefault(row["compiler"], {})[row["benchmark"]] = (float(row["min"]), float(row["median"]))
     return results
 
 def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=()):
@@ -46,6 +49,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "--db", db,
                      "--profiles", "Debug",
                      "--scenarios", "Full",
+                     "--iterations", str(COMPILE_ITERATIONS),
                      "--exclude", ",".join(EX_COMPILE_TESTS),
                      "--id", name,
                      *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
@@ -58,11 +62,13 @@ def compiletime_results(db="results.db", suffix = ""):
              [
                  "sqlite3", "-header", "-csv", db,
                  """
-                 SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value as seconds
+                 SELECT a.name as compiler, s.crate as benchmark, s.profile,
+                           MIN(p.value) as min, median(p.value) as median
                     FROM artifact a 
                     JOIN pstat p ON a.id = p.aid 
                     JOIN pstat_series s ON p.series = s.id 
-                    WHERE s.metric = 'wall-time';
+                    WHERE s.metric = 'wall-time'
+                    GROUP BY a.name, s.crate, s.profile;
                  """
              ],
              cwd="rustc-perf")
@@ -74,11 +80,13 @@ def compiletime_results(db="results.db", suffix = ""):
                       [
                           "sqlite3", "-header", "-csv", db,
                           """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
+                          SELECT a.name as compiler, s.crate as benchmark, s.profile,
+                                 MIN(p.value) / 1000 as min, median(p.value) / 1000 as median
                           FROM artifact a
                                    JOIN pstat p ON a.id = p.aid
                                    JOIN pstat_series s ON p.series = s.id
-                          WHERE s.metric = 'cpu-clock';
+                          WHERE s.metric = 'cpu-clock'
+                          GROUP BY a.name, s.crate, s.profile;
                           """
                       ],
                       cwd="rustc-perf")
@@ -90,11 +98,13 @@ def compiletime_results(db="results.db", suffix = ""):
                       [
                           "sqlite3", "-header", "-csv", db,
                           """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
+                          SELECT a.name as compiler, s.crate as benchmark, s.profile,
+                                 MIN(p.value) / 1000 as min, median(p.value) / 1000 as median
                           FROM artifact a
                                    JOIN pstat p ON a.id = p.aid
                                    JOIN pstat_series s ON p.series = s.id
-                          WHERE s.metric = 'task-clock';
+                          WHERE s.metric = 'task-clock'
+                          GROUP BY a.name, s.crate, s.profile;
                           """
                       ],
                       cwd="rustc-perf")
@@ -108,6 +118,7 @@ def run_runtime_benchmark(config):
                  [
                      "./target/release/collector", "bench_runtime_local",
                      "--id", name,
+                     "--iterations", str(RUNTIME_ITERATIONS),
                      # Try to resemble debug builds as close as possible
                      *[arg for setting in DEV_PROFILE for arg in ("--cargo-config", f"profile.release.{setting}")],
                      compiler
@@ -119,7 +130,8 @@ def runtime_results():
              [
                  "sqlite3", "-header", "-csv", "results.db",
                  """
-                 SELECT a.name AS compiler, s.benchmark AS benchmark, MIN(p.value) / 1e9 AS seconds
+                 SELECT a.name AS compiler, s.benchmark AS benchmark,
+                           MIN(p.value) / 1e9 AS min, median(p.value) / 1e9 AS median
                     FROM artifact a
                     JOIN runtime_pstat p ON a.id = p.aid
                     JOIN runtime_pstat_series s ON p.series = s.id

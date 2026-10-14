@@ -1,8 +1,10 @@
 #!/bin/bash
-# rustc_tpde.sh
+# rustc_tpde_dynamic.sh
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
-RUSTC_TPDE_PATH="${SCRIPT_DIR}/../backend_tpde/target/release/rustc_tpde"
+BACKEND_PATH="${SCRIPT_DIR}/../backend_tpde/target/release/librustc_codegen_tpde_dylib.so"
 
-exec $RUSTC_TPDE_PATH \
+exec rustc \
+  +nightly-2026-08-19 \
+  -Z codegen-backend="${BACKEND_PATH}" \
   "$@"

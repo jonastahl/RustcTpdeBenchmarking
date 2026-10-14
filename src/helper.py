@@ -70,8 +70,11 @@ def run_task(description, command, cwd=".", print_result=False):
         sys.exit(1)
 
 def format_seconds(seconds):
+    """Formats seconds, or a (min, median) tuple as `min (median)`."""
     if seconds is None:
         return "- ms"
+    if isinstance(seconds, tuple):
+        return f"{seconds[0] * 1000:.1f} ({seconds[1] * 1000:.1f}) ms"
     return f"{seconds * 1000:.1f} ms"
 
 def print_table(table: Dict[str, Dict[str, Number]], title = ""):
@@ -80,7 +83,11 @@ def print_table(table: Dict[str, Dict[str, Number]], title = ""):
 
     def average(col):
         values = [v for v in (table[col].get(row) for row in rows) if v is not None]
-        return sum(values) / len(values) if values else None
+        if not values:
+            return None
+        if isinstance(values[0], tuple):
+            return tuple(sum(v[i] for v in values) / len(values) for i in range(len(values[0])))
+        return sum(values) / len(values)
 
     table = ([[title, *headers]]
              + [[row, *map(format_seconds, [table[col].get(row) for col in headers])] for row in rows]
