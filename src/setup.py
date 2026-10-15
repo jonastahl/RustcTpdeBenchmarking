@@ -17,7 +17,7 @@ def run_setup():
 
     # Build llvm tpde backend
     run_task("Building llvm-tpde backend",
-             ["./y.sh", "--sysroot", "none"],
+             ["./y.sh", "build", "--sysroot", "none"],
              cwd="deps/rustc_codegen_llvm_tpde")
 
     # Building rustc-perf

@@ -1,10 +1,21 @@
 import argparse
-from pathlib import Path
 
 from results import results
 from src.benchmarks import run_compiletime_benchmark, run_runtime_benchmark
 from src.setup import run_setup
 from src.self_profile import run_self_profile
+
+def load_variants():
+    # all variants relative to deps/rustc-perf
+    return [
+        ("../../variants/rustc_cranelift.sh", "rustc_cranelift", []),
+        ("../../variants/rustc_llvm.sh", "rustc_llvm", []),
+        ("../../variants/rustc_llvm.sh", "rustc_llvm_O1", ["opt-level=1"]),
+        ("../../variants/rustc_llvm.sh", "rustc_llvm_O2", ["opt-level=2"]),
+        ("../../variants/rustc_llvm.sh", "rustc_llvm_O3", ["opt-level=3"]),
+        ("../../variants/rustc_llvm_tpde.sh", "rustc_llvm_tpde", []),
+        ("../../variants/rustc_tpde.sh", "rustc_tpde", []),
+    ]
 
 def main():
     parser = argparse.ArgumentParser()
@@ -16,7 +27,7 @@ def main():
     run_setup()
 
     # Load the different variants
-    config = [(f"../variants/{file.name}", file.stem) for file in Path("variants").iterdir()]
+    config = load_variants()
 
     # Run the actual benchmarks
     run_compiletime_benchmark(config, rerun=args.rerun)

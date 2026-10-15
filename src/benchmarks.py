@@ -24,6 +24,9 @@ DEV_PROFILE = [
 COMPILER_NAMES = {
     "rustc_gcc": "GCC",
     "rustc_llvm": "LLVM",
+    "rustc_llvm_O1": "LLVM O1",
+    "rustc_llvm_O2": "LLVM O2",
+    "rustc_llvm_O3": "LLVM O3",
     "rustc_tpde": "TPDE",
     "rustc_tpde_dynamic": "TPDE dynamic",
     "rustc_cranelift": "Cranelift",
@@ -49,7 +52,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "rm", "-f", db,
                  ],
                  cwd="deps/rustc-perf")
-    for (compiler, name) in config:
+    for (compiler, name, settings) in config:
         run_task(f"Running benchmark with compiler {name}{suffix}",
                  [
                      "./target/release/collector", "bench_local",
@@ -59,6 +62,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "--iterations", str(COMPILE_ITERATIONS),
                      "--exclude", ",".join(EX_COMPILE_TESTS),
                      "--id", name,
+                     *[arg for setting in settings for arg in ("--cargo-config", f"profile.dev.{setting}")],
                      *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
                      compiler
                  ],
@@ -114,14 +118,17 @@ def compiletime_results(db="results.db", suffix = ""):
     print_table(results, f"Compiletime (task-clock){suffix}")
 
 def run_runtime_benchmark(config):
-    for (compiler, name) in config:
+    for (compiler, name, settings) in config:
+        # Variant specific settings override the ones of the dev profile
+        profile = dict(setting.split("=", 1) for setting in DEV_PROFILE)
+        profile.update(setting.split("=", 1) for setting in settings)
         run_task(f"Running runtime benchmark with compiler {name}",
                  [
                      "./target/release/collector", "bench_runtime_local",
                      "--id", name,
                      "--iterations", str(RUNTIME_ITERATIONS),
                      # Try to resemble debug builds as close as possible
-                     *[arg for setting in DEV_PROFILE for arg in ("--cargo-config", f"profile.release.{setting}")],
+                     *[arg for key, value in profile.items() for arg in ("--cargo-config", f"profile.release.{key}={value}")],
                      compiler
                  ],
                  cwd="deps/rustc-perf")
