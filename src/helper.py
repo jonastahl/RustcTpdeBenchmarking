@@ -12,7 +12,7 @@ env["PATH"] = f"{cargo_bin}{os.pathsep}{env.get('PATH', '')}"
 env["CARGO_PROFILE_DEV_DEBUG"] = "0"
 env["CARGO_PROFILE_RELEASE_DEBUG"] = "0"
 
-def run_task(description, command, cwd=".", print_result=False):
+def run_task(description, command, cwd=".", print_result=False, allow_failure=False):
     # ANSI escape codes for terminal colors and actions
     YELLOW = '\033[93m'
     GREEN = '\033[92m'
@@ -67,7 +67,11 @@ def run_task(description, command, cwd=".", print_result=False):
         # Overwrite with red failure message and dump the full captured log
         print(f"\r{CLEAR_LINE}[{RED}✖{RESET}] {description}\n")
         print("".join(full_output).strip())
-        sys.exit(1)
+        if not allow_failure:
+            sys.exit(1)
+        # Partial results (e.g. benchmarks a backend does support) are still usable
+        print(f"\n[{YELLOW}!{RESET}] Continuing despite failure of: {description}")
+        return None
 
 def format_seconds(seconds):
     """Formats seconds, or a (min, median) tuple as `min (median)`."""

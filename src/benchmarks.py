@@ -66,7 +66,8 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
                      compiler
                  ],
-                 cwd="deps/rustc-perf")
+                 cwd="deps/rustc-perf",
+                 allow_failure=True)
 
 def compiletime_results(db="results.db", suffix = ""):
     output = run_task("Reading the results (wall-time)",
@@ -131,7 +132,8 @@ def run_runtime_benchmark(config):
                      *[arg for key, value in profile.items() for arg in ("--cargo-config", f"profile.release.{key}={value}")],
                      compiler
                  ],
-                 cwd="deps/rustc-perf")
+                 cwd="deps/rustc-perf",
+                 allow_failure=True)
 
 def runtime_results():
     output = run_task("Reading the runtime results",
