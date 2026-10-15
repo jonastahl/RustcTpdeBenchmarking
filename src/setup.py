@@ -8,17 +8,22 @@ def run_setup():
     # Installing cxxbridge for cmake
     run_task("Install cxxbridge-cmd for cmake",
              ["cargo", "install", "cxxbridge-cmd"],
-             "backend_tpde")
+             "deps/RustcTpde")
 
     # Building backend
     run_task("Building tpde backend",
              ["cargo", "build", "--release"],
-             "backend_tpde")
+             "deps/RustcTpde")
+
+    # Build llvm tpde backend
+    run_task("Building llvm-tpde backend",
+             ["./y.sh", "--sysroot", "none"],
+             cwd="deps/rustc_codegen_llvm_tpde")
 
     # Building rustc-perf
     run_task("Building rustc-perf",
              ["cargo", "build", "--release", "-p", "collector"],
-             "rustc-perf")
+             "deps/rustc-perf")
 
     # Install measureme for results of self perf (summarize) and the flamegraph of it
     run_task("Install self-perf measureme",

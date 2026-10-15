@@ -1,6 +1,9 @@
 [submodule "backend_tpde"]
-	path = backend_tpde
+	path = deps/RustcTpde
 	url = https://github.com/jonastahl/RustcTpde
 [submodule "rustc-perf"]
-	path = rustc-perf
+	path = deps/rustc-perf
 	url = https://github.com/rust-lang/rustc-perf.git
+[submodule "llvm-tpde"]
+	path = deps/rustc_codegen_llvm_tpde
+	url = https://github.com/jonastahl/rustc_codegen_llvm_tpde.git

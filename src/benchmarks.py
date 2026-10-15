@@ -48,7 +48,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                  [
                      "rm", "-f", db,
                  ],
-                 cwd="rustc-perf")
+                 cwd="deps/rustc-perf")
     for (compiler, name) in config:
         run_task(f"Running benchmark with compiler {name}{suffix}",
                  [
@@ -57,12 +57,12 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "--profiles", "Debug",
                      "--scenarios", "Full",
                      "--iterations", str(COMPILE_ITERATIONS),
-                     "--include", ",".join(COMPILE_TESTS),
+                     "--exclude", ",".join(EX_COMPILE_TESTS),
                      "--id", name,
                      *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
                      compiler
                  ],
-                 cwd="rustc-perf")
+                 cwd="deps/rustc-perf")
 
 def compiletime_results(db="results.db", suffix = ""):
     output = run_task("Reading the results (wall-time)",
@@ -76,7 +76,7 @@ def compiletime_results(db="results.db", suffix = ""):
                     WHERE s.metric = 'wall-time';
                  """
              ],
-             cwd="rustc-perf")
+             cwd="deps/rustc-perf")
 
     results = parse_results(output)
     print_table(results, f"Compiletime (wall-time){suffix}")
@@ -92,7 +92,7 @@ def compiletime_results(db="results.db", suffix = ""):
                           WHERE s.metric = 'cpu-clock';
                           """
                       ],
-                      cwd="rustc-perf")
+                      cwd="deps/rustc-perf")
 
     results = parse_results(output)
     print_table(results, f"Compiletime (cpu-clock){suffix}")
@@ -108,7 +108,7 @@ def compiletime_results(db="results.db", suffix = ""):
                           WHERE s.metric = 'task-clock';
                           """
                       ],
-                      cwd="rustc-perf")
+                      cwd="deps/rustc-perf")
 
     results = parse_results(output)
     print_table(results, f"Compiletime (task-clock){suffix}")
@@ -124,7 +124,7 @@ def run_runtime_benchmark(config):
                      *[arg for setting in DEV_PROFILE for arg in ("--cargo-config", f"profile.release.{setting}")],
                      compiler
                  ],
-                 cwd="rustc-perf")
+                 cwd="deps/rustc-perf")
 
 def runtime_results():
     output = run_task("Reading the runtime results",
@@ -138,6 +138,6 @@ def runtime_results():
                     WHERE s.metric = 'wall-time';
                  """
              ],
-             cwd="rustc-perf")
+             cwd="deps/rustc-perf")
 
     print_table(parse_results(output), "Runtime")
