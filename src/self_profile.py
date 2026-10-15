@@ -7,33 +7,83 @@ from src.helper import env, run_task, print_table
 
 ROOT = Path(__file__).resolve().parent.parent
 BENCH_DIR = ROOT / "deps/rustc-perf/collector/compile-benchmarks/regex-automata-0.4.8"
-BACKEND = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde_dylib.so"
-RUSTC_TPDE = ROOT / "deps/RustcTpde/target/release/rustc_tpde"
+BACKEND_TPDE = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde_dylib.so"
+BACKEND_TPDE_LLVM = ROOT / "deps/rustc_codegen_llvm_tpde/dist/lib/librustc_codegen_tpde.so"
 TOOLCHAIN = "+nightly-2026-08-19"
 TARGET = "x86_64-unknown-linux-gnu"
 
-# Per backend: the rustc flag selecting it (and optionally a custom rustc binary) and the self-profile events that make up
-# IR generation and object generation. The times of all listed events are summed up.
+# LLVM's middle-end optimization of each codegen unit
+LLVM_OPT = ["LLVM_module_optimize"]
+
+# The ThinLTO events only occur with opt-level > 0, where rustc runs local ThinLTO across the codegen units of a crate.
+# LLVM_thin_lto_optimize already includes the nested import/rename/LLVM_lto_optimize events.
+LLVM_LTO = ["LLVM_thin_lto_global_analysis", "LLVM_thin_lto_optimize"]
+
+# Linking is done by rustc_codegen_ssa for all backends. For the rlibs built here this is only archiving.
+LINK = ["link"]
+
+# Per backend: the rustc flag selecting it (and optionally a custom rustc binary and opt-level) and the self-profile events that make up
+# IR generation, optimization, LTO and object generation. The times of all listed events are summed up.
 BACKENDS = {
     "LLVM": {
         "flag": "",
         "ir": ["codegen_module"],
+        "opt": LLVM_OPT,
+        "lto": LLVM_LTO,
+        "obj": ["LLVM_module_codegen_emit_obj"],
+    },
+    "LLVM O1": {
+        "flag": "",
+        "opt_level": 1,
+        "ir": ["codegen_module"],
+        "opt": LLVM_OPT,
+        "lto": LLVM_LTO,
+        "obj": ["LLVM_module_codegen_emit_obj"],
+    },
+    "LLVM O2": {
+        "flag": "",
+        "opt_level": 2,
+        "ir": ["codegen_module"],
+        "opt": LLVM_OPT,
+        "lto": LLVM_LTO,
+        "obj": ["LLVM_module_codegen_emit_obj"],
+    },
+    "LLVM O3": {
+        "flag": "",
+        "opt_level": 3,
+        "ir": ["codegen_module"],
+        "opt": LLVM_OPT,
+        "lto": LLVM_LTO,
         "obj": ["LLVM_module_codegen_emit_obj"],
     },
     "TPDE": {
-        "flag": f"-Zcodegen-backend={BACKEND}",
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
         "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
         "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "TPDE LLVM": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE_LLVM}",
+        "ir": ["codegen_module"],
+        "opt": LLVM_OPT,
+        "lto": LLVM_LTO,
+        "obj": ["LLVM_module_codegen_emit_obj"],
     },
     "Cranelift": {
         "flag": "-Zcodegen-backend=cranelift",
         "ir": ["codegen cgu"],
+        "opt": [],
+        "lto": [],
         "obj": ["compile functions", "compile assembly", "write object file"],
     },
 }
 
 HEADER_IR = "IR generation"
+HEADER_OPT = "Optimization"
+HEADER_LTO = "LTO"
 HEADER_OBJ = "Obj generation"
+HEADER_LINK = "Linking"
 HEADER_TOTAL = "Total cpu time"
 
 UNITS = {"ns": 1e-9, "µs": 1e-6, "us": 1e-6, "ms": 1e-3, "s": 1.0}
@@ -89,6 +139,7 @@ def run_self_profile(rerun=False):
                  [
                      "env", f"RUSTFLAGS={rustflags}",
                      *([f"RUSTC={backend['rustc']}"] if "rustc" in backend else []),
+                     *([f"CARGO_PROFILE_DEV_OPT_LEVEL={backend['opt_level']}"] if "opt_level" in backend else []),
                      "cargo", TOOLCHAIN, "build", "--lib",
                      "--target", TARGET,
                      "--target-dir", target_dir.name,
@@ -98,14 +149,17 @@ def run_self_profile(rerun=False):
 def self_profile_results():
     rows = {}
     for name, backend in BACKENDS.items():
-        ir = obj = total = 0.0
+        ir = opt = lto = obj = link = total = 0.0
         # Sum over all crates (dependencies included) and all codegen units
         for profile in (BENCH_DIR / f"prof-{name.lower().replace(' ', '-')}").glob("regex_automata-*.mm_profdata"):
             times, profile_total = event_times(name, profile)
             total += profile_total
             ir += sum(times.get(event, 0.0) for event in backend["ir"])
+            opt += sum(times.get(event, 0.0) for event in backend["opt"])
+            lto += sum(times.get(event, 0.0) for event in backend["lto"])
             obj += sum(times.get(event, 0.0) for event in backend["obj"])
-        rows[name] = {HEADER_IR: ir, HEADER_OBJ: obj, HEADER_TOTAL: total}
+            link += sum(times.get(event, 0.0) for event in LINK)
+        rows[name] = {HEADER_IR: ir, HEADER_OPT: opt, HEADER_LTO: lto, HEADER_OBJ: obj, HEADER_LINK: link, HEADER_TOTAL: total}
 
     print_table(rows, "Self profile")
 
