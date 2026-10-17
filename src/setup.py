@@ -15,6 +15,11 @@ def run_setup():
              ["cargo", "build", "--release"],
              "deps/RustcTpde")
 
+    # Build backend without caching
+    run_task("Building tpde backend",
+             ["cargo", "build", "--release", "--features", "no-cache", "--target-dir", "target-no-cache"],
+             "deps/RustcTpde")
+
     # Build llvm tpde backend
     run_task("Building llvm-tpde backend",
              ["./y.sh", "build", "--sysroot", "none"],

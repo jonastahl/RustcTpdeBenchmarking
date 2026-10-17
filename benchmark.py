@@ -15,6 +15,7 @@ def load_variants():
         ("../../variants/rustc_llvm.sh", "rustc_llvm_O3", ["opt-level=3"]),
         ("../../variants/rustc_llvm_tpde.sh", "rustc_llvm_tpde", []),
         ("../../variants/rustc_tpde.sh", "rustc_tpde", []),
+        ("../../variants/rustc_tpde_no_cache.sh", "rustc_tpde_no_cache", []),
     ]
 
 def main():

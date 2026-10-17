@@ -21,18 +21,6 @@ DEV_PROFILE = [
     "codegen-units=256",
 ]
 
-COMPILER_NAMES = {
-    "rustc_gcc": "GCC",
-    "rustc_llvm": "LLVM",
-    "rustc_llvm_O1": "LLVM O1",
-    "rustc_llvm_O2": "LLVM O2",
-    "rustc_llvm_O3": "LLVM O3",
-    "rustc_tpde": "TPDE",
-    "rustc_tpde_dynamic": "TPDE dynamic",
-    "rustc_cranelift": "Cranelift",
-}
-
-
 def parse_results(output):
     """Parse the csv output of the results query into {compiler: {benchmark: (min, median)}} in seconds.
 

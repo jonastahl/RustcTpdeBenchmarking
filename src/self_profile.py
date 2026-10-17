@@ -10,6 +10,7 @@ BENCH_ROOT = ROOT / "deps/rustc-perf/collector/compile-benchmarks"
 BENCHMARKS = ["ripgrep-14.1.1", "regression-31157", "regex-automata-0.4.8"]
 FLAMEGRAPH_DIR = ROOT / "flamegraphs"
 BACKEND_TPDE = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde_dylib.so"
+BACKEND_TPDE_NO_CACHE = ROOT / "deps/RustcTpde/target-no-cache/release/librustc_codegen_tpde_dylib.so"
 BACKEND_TPDE_LLVM = ROOT / "deps/rustc_codegen_llvm_tpde/dist/lib/librustc_codegen_tpde.so"
 TOOLCHAIN = "+nightly-2026-08-19"
 TARGET = "x86_64-unknown-linux-gnu"
@@ -61,6 +62,13 @@ BACKENDS = {
     },
     "TPDE": {
         "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
+        "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
+        "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "TPDE no-cache": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE_NO_CACHE}",
         "ir": ["codegen_module"],
         "opt": ["TPDE_module_optimize"],
         "lto": [],
