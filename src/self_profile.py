@@ -7,7 +7,7 @@ from src.helper import env, run_task, print_table
 
 ROOT = Path(__file__).resolve().parent.parent
 BENCH_ROOT = ROOT / "deps/rustc-perf/collector/compile-benchmarks"
-BENCHMARKS = ["ripgrep-14.1.1", "regression-31157", "regex-automata-0.4.8"]
+BENCHMARKS = ["ripgrep-14.1.1", "regression-31157", "regex-automata-0.4.8", "cranelift-codegen-0.119.0"]
 FLAMEGRAPH_DIR = ROOT / "flamegraphs"
 BACKEND_TPDE = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde_dylib.so"
 BACKEND_TPDE_NO_CACHE = ROOT / "deps/RustcTpde/target-no-cache/release/librustc_codegen_tpde_dylib.so"
