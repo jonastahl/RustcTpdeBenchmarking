@@ -67,6 +67,13 @@ BACKENDS = {
         "lto": [],
         "obj": ["TPDE_module_codegen_emit_obj"],
     },
+    "TPDE (mir inline)": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE} -Zinline-mir=yes",
+        "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
+        "obj": ["TPDE_module_codegen_emit_obj"],
+    },
     "TPDE no-cache": {
         "flag": f"-Zcodegen-backend={BACKEND_TPDE_NO_CACHE}",
         "ir": ["codegen_module"],
