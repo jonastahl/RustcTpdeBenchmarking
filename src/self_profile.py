@@ -92,7 +92,7 @@ BACKENDS = {
     "Cranelift": {
         "flag": "-Zcodegen-backend=cranelift",
         "ir": ["codegen cgu"],
-        "opt": [],
+        "opt": ["Remove unreachable blocks", "Remove constant phi-nodes"],
         "lto": [],
         "obj": ["compile functions", "compile assembly", "write object file"],
     },
