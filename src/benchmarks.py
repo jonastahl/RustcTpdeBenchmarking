@@ -21,15 +21,18 @@ DEV_PROFILE = [
     "codegen-units=256",
 ]
 
+# All results are additionally shown relative to this variant
+BASELINE = "rustc_llvm"
+
 def parse_results(output):
-    """Parse the csv output of the results query into {compiler: {benchmark: (min, median)}} in seconds.
+    """Parse the csv output of the results query into {compiler: {benchmark: median}} in seconds.
 
     The query returns one row per iteration, so all samples of a benchmark are reduced here."""
     samples = {}
     for row in csv.DictReader(io.StringIO(output)):
         samples.setdefault(row["compiler"], {}).setdefault(row["benchmark"], []).append(float(row["seconds"]))
     return {
-        compiler: {benchmark: (min(values), statistics.median(values)) for benchmark, values in benchmarks.items()}
+        compiler: {benchmark: statistics.median(values) for benchmark, values in benchmarks.items()}
         for compiler, benchmarks in samples.items()
     }
 
@@ -72,7 +75,7 @@ def compiletime_results(db="results.db", suffix = ""):
              cwd="deps/rustc-perf")
 
     results = parse_results(output)
-    print_table(results, f"Compiletime (wall-time){suffix}")
+    print_table(results, f"Compiletime (wall-time){suffix}", BASELINE)
 
     output = run_task("Reading the results (cpu-clock)",
                       [
@@ -88,7 +91,7 @@ def compiletime_results(db="results.db", suffix = ""):
                       cwd="deps/rustc-perf")
 
     results = parse_results(output)
-    print_table(results, f"Compiletime (cpu-clock){suffix}")
+    print_table(results, f"Compiletime (cpu-clock){suffix}", BASELINE)
 
     output = run_task("Reading the results (task-clock)",
                       [
@@ -104,7 +107,7 @@ def compiletime_results(db="results.db", suffix = ""):
                       cwd="deps/rustc-perf")
 
     results = parse_results(output)
-    print_table(results, f"Compiletime (task-clock){suffix}")
+    print_table(results, f"Compiletime (task-clock){suffix}", BASELINE)
 
 def run_runtime_benchmark(config):
     for (compiler, name, settings) in config:
@@ -137,4 +140,4 @@ def runtime_results():
              ],
              cwd="deps/rustc-perf")
 
-    print_table(parse_results(output), "Runtime")
+    print_table(parse_results(output), "Runtime", BASELINE)

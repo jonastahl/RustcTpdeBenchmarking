@@ -1,5 +1,6 @@
 import os
 import shutil
+import statistics
 import subprocess
 import sys
 from numbers import Number
@@ -73,35 +74,49 @@ def run_task(description, command, cwd=".", print_result=False, allow_failure=Fa
         print(f"\n[{YELLOW}!{RESET}] Continuing despite failure of: {description}")
         return None
 
-def format_seconds(seconds):
-    """Formats seconds, or a (min, median) tuple as `min (median)`."""
+def format_seconds(seconds, relative=None):
+    """Formats seconds as ms, optionally followed by the change a relative value corresponds to (0.99 -> -1.0%)."""
     if seconds is None:
         return "- ms"
-    if isinstance(seconds, tuple):
-        return f"{seconds[0] * 1000:.1f} ({seconds[1] * 1000:.1f}) ms"
-    return f"{seconds * 1000:.1f} ms"
+    if relative is None:
+        return f"{seconds * 1000:.1f} ms"
+    return f"{seconds * 1000:.1f} ms ({(relative - 1) * 100:+.1f}%)"
 
-def print_table(table: Dict[str, Dict[str, Number]], title = ""):
+def print_table(table: Dict[str, Dict[str, Number]], title = "", baseline = None):
+    """Prints one column per key of table. With a baseline column, every value is also shown relative to the baseline
+    in the same row. The relative value of the average row is the geometric mean of the relative values of its column,
+    so it only considers the rows the column has results for."""
     headers = sorted(table.keys())
     rows = sorted({key for column in table.values() for key in column})
+
+    def relative(col, row):
+        value = table[col].get(row)
+        base = table.get(baseline, {}).get(row)
+        if value is None or not base:
+            return None
+        return value / base
 
     def average(col):
         values = [v for v in (table[col].get(row) for row in rows) if v is not None]
         if not values:
             return None
-        if isinstance(values[0], tuple):
-            return tuple(sum(v[i] for v in values) / len(values) for i in range(len(values[0])))
         return sum(values) / len(values)
 
-    table = ([[title, *headers]]
-             + [[row, *map(format_seconds, [table[col].get(row) for col in headers])] for row in rows]
-             + [["Average", *map(format_seconds, [average(col) for col in headers])]])
-    widths = [max(len(row[i]) for row in table) for i in range(len(headers) + 1)]
+    def average_relative(col):
+        values = [r for r in (relative(col, row) for row in rows) if r]
+        if not values:
+            return None
+        return statistics.geometric_mean(values)
+
+    cells = ([[title, *headers]]
+             + [[row, *[format_seconds(table[col].get(row), relative(col, row)) for col in headers]] for row in rows]
+             + [["Average", *[format_seconds(average(col), average_relative(col)) for col in headers]]])
+    widths = [max(len(row[i]) for row in cells) for i in range(len(headers) + 1)]
     separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
 
     print(separator)
-    for index, row in enumerate(table):
-        if index == len(table) - 1:
+    for index, row in enumerate(cells):
+        if index == len(cells) - 1:
             print(separator)
         print("| " + " | ".join(row[0].ljust(widths[0]) if i == 0 else row[i].rjust(widths[i])
                                 for i in range(len(headers) + 1)) + " |")
