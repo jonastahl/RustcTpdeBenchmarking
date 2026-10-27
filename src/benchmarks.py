@@ -115,6 +115,7 @@ def run_runtime_benchmark(config):
                      "./target/release/collector", "bench_runtime_local",
                      "--id", name,
                      "--iterations", str(RUNTIME_ITERATIONS),
+                     "--exclude", ",".join(EX_RUNTIME_TESTS),
                      # Try to resemble debug builds as close as possible
                      *[arg for key, value in profile.items() for arg in ("--cargo-config", f"profile.release.{key}={value}")],
                      compiler
