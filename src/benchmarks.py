@@ -1,6 +1,5 @@
 import csv
 import io
-import statistics
 
 from src.helper import run_task, print_table
 
@@ -21,20 +20,17 @@ DEV_PROFILE = [
     "codegen-units=256",
 ]
 
-# All results are additionally shown relative to this variant
+# All other variants are shown relative to this one
 BASELINE = "rustc_llvm"
 
 def parse_results(output):
-    """Parse the csv output of the results query into {compiler: {benchmark: median}} in seconds.
+    """Parse the csv output of the results query into {compiler: {benchmark: samples}} in seconds.
 
-    The query returns one row per iteration, so all samples of a benchmark are reduced here."""
+    The query returns one row per iteration, so every benchmark has one sample per iteration."""
     samples = {}
     for row in csv.DictReader(io.StringIO(output)):
         samples.setdefault(row["compiler"], {}).setdefault(row["benchmark"], []).append(float(row["seconds"]))
-    return {
-        compiler: {benchmark: statistics.median(values) for benchmark, values in benchmarks.items()}
-        for compiler, benchmarks in samples.items()
-    }
+    return samples
 
 def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=()):
     if rerun:

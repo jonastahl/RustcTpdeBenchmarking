@@ -3,8 +3,7 @@ import shutil
 import statistics
 import subprocess
 import sys
-from numbers import Number
-from typing import Dict
+from typing import Dict, List
 
 # Ensure that the right cargo is used
 env = os.environ.copy()
@@ -74,43 +73,55 @@ def run_task(description, command, cwd=".", print_result=False, allow_failure=Fa
         print(f"\n[{YELLOW}!{RESET}] Continuing despite failure of: {description}")
         return None
 
-def format_seconds(seconds, relative=None):
-    """Formats seconds as ms, optionally followed by the change a relative value corresponds to (0.99 -> -1.0%)."""
-    if seconds is None:
-        return "- ms"
-    if relative is None:
-        return f"{seconds * 1000:.1f} ms"
-    return f"{seconds * 1000:.1f} ms ({(relative - 1) * 100:+.1f}%)"
+def format_value(value, stdev=None, unit=" ms", signed=False):
+    """Formats a value with one decimal (and an explicit sign if signed), followed by its standard deviation if given."""
+    text = f"{value:+.1f}{unit}" if signed else f"{value:.1f}{unit}"
+    return text if stdev is None else f"{text} ± {stdev:.1f}{unit}"
 
-def print_table(table: Dict[str, Dict[str, Number]], title = "", baseline = None):
-    """Prints one column per key of table. With a baseline column, every value is also shown relative to the baseline
-    in the same row. The relative value of the average row is the geometric mean of the relative values of its column,
-    so it only considers the rows the column has results for."""
-    headers = sorted(table.keys())
+def print_table(table: Dict[str, Dict[str, List[float]]], title = "", baseline = None):
+    """Prints one column per key of table, reducing the samples (in seconds) of every cell to their median and standard
+    deviation. The baseline column comes first and is the only one with absolute values. All other columns show the
+    change of their median relative to the median of the baseline in the same row (1.1 * baseline -> +10.0%) and their
+    standard deviation in percent of the baseline median. Where the baseline median is 0, there is no relative change,
+    so the absolute difference is shown instead.
+
+    The average row is the mean of the medians for the baseline and the geometric mean of the relative medians for all
+    other columns, so the latter only considers the rows both columns have results for."""
+    headers = sorted(table.keys(), key=lambda header: (header != baseline, header))
     rows = sorted({key for column in table.values() for key in column})
+    medians = {col: {row: statistics.median(samples) for row, samples in column.items()} for col, column in table.items()}
 
-    def relative(col, row):
-        value = table[col].get(row)
-        base = table.get(baseline, {}).get(row)
-        if value is None or not base:
-            return None
-        return value / base
+    def stdev(col, row):
+        # The standard deviation needs at least two samples
+        samples = table[col].get(row, [])
+        return statistics.stdev(samples) if len(samples) > 1 else None
+
+    def cell(col, row):
+        value = medians[col].get(row)
+        if value is None:
+            return "-"
+        spread = stdev(col, row)
+        if baseline is None or col == baseline:
+            return format_value(value * 1000, None if spread is None else spread * 1000)
+        base = medians.get(baseline, {}).get(row)
+        if base is None:
+            return "-"
+        if base == 0:
+            return format_value(value * 1000, None if spread is None else spread * 1000, signed=True)
+        return format_value((value / base - 1) * 100, None if spread is None else spread / base * 100,
+                            unit="%", signed=True)
 
     def average(col):
-        values = [v for v in (table[col].get(row) for row in rows) if v is not None]
-        if not values:
-            return None
-        return sum(values) / len(values)
-
-    def average_relative(col):
-        values = [r for r in (relative(col, row) for row in rows) if r]
-        if not values:
-            return None
-        return statistics.geometric_mean(values)
+        if baseline is None or col == baseline:
+            values = [v for v in (medians[col].get(row) for row in rows) if v is not None]
+            return format_value(sum(values) / len(values) * 1000) if values else "-"
+        relatives = [medians[col][row] / medians[baseline][row] for row in rows
+                     if medians[col].get(row) and medians.get(baseline, {}).get(row)]
+        return format_value((statistics.geometric_mean(relatives) - 1) * 100, unit="%", signed=True) if relatives else "-"
 
     cells = ([[title, *headers]]
-             + [[row, *[format_seconds(table[col].get(row), relative(col, row)) for col in headers]] for row in rows]
-             + [["Average", *[format_seconds(average(col), average_relative(col)) for col in headers]]])
+             + [[row, *[cell(col, row) for col in headers]] for row in rows]
+             + [["Average", *[average(col) for col in headers]]])
     widths = [max(len(row[i]) for row in cells) for i in range(len(headers) + 1)]
     separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
 
