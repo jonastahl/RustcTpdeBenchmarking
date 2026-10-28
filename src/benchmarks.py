@@ -12,6 +12,9 @@ COMPILE_TESTS = ["diesel-2.2.10-new-solver", "nalgebra-0.33.0-new-solver", "ripg
 COMPILE_ITERATIONS = 5
 RUNTIME_ITERATIONS = 5
 
+# The compile time benchmarks are additionally run restricted to each of these numbers of cores
+COMPILE_CORES = [8, 4]
+
 DEV_PROFILE = [
     "opt-level=0",
     "debug=0",
@@ -32,16 +35,18 @@ def parse_results(output):
         samples.setdefault(row["compiler"], {}).setdefault(row["benchmark"], []).append(float(row["seconds"]))
     return samples
 
-def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=()):
+def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=(), cores=None):
     if rerun:
         run_task("Remove previous results",
                  [
                      "rm", "-f", db,
                  ],
                  cwd="deps/rustc-perf")
+    pin = ["taskset", "--cpu-list", f"0-{cores - 1}"] if cores else []
     for (compiler, name, settings) in config:
         run_task(f"Running benchmark with compiler {name}{suffix}",
                  [
+                     *pin,
                      "./target/release/collector", "bench_local",
                      "--db", db,
                      "--profiles", "Debug",
@@ -72,38 +77,6 @@ def compiletime_results(db="results.db", suffix = ""):
 
     results = parse_results(output)
     print_table(results, f"Compiletime (wall-time){suffix}", BASELINE)
-
-    output = run_task("Reading the results (cpu-clock)",
-                      [
-                          "sqlite3", "-header", "-csv", db,
-                          """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
-                          FROM artifact a
-                                   JOIN pstat p ON a.id = p.aid
-                                   JOIN pstat_series s ON p.series = s.id
-                          WHERE s.metric = 'cpu-clock';
-                          """
-                      ],
-                      cwd="deps/rustc-perf")
-
-    results = parse_results(output)
-    print_table(results, f"Compiletime (cpu-clock){suffix}", BASELINE)
-
-    output = run_task("Reading the results (task-clock)",
-                      [
-                          "sqlite3", "-header", "-csv", db,
-                          """
-                          SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value / 1000 as seconds
-                          FROM artifact a
-                                   JOIN pstat p ON a.id = p.aid
-                                   JOIN pstat_series s ON p.series = s.id
-                          WHERE s.metric = 'task-clock';
-                          """
-                      ],
-                      cwd="deps/rustc-perf")
-
-    results = parse_results(output)
-    print_table(results, f"Compiletime (task-clock){suffix}", BASELINE)
 
 def run_runtime_benchmark(config):
     for (compiler, name, settings) in config:

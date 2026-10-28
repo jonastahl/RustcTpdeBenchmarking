@@ -1,7 +1,7 @@
 import argparse
 
 from results import results
-from src.benchmarks import run_compiletime_benchmark, run_runtime_benchmark
+from src.benchmarks import COMPILE_CORES, run_compiletime_benchmark, run_runtime_benchmark
 from src.setup import run_setup
 from src.self_profile import run_self_profile
 
@@ -36,6 +36,11 @@ def main():
 
     # Run benchmarks with cgu = 1
     run_compiletime_benchmark(config, rerun=args.rerun, db="results_1.db", suffix=" cgu=1", cargo_configs=["profile.dev.codegen-units=1"])
+
+    # Run benchmarks restricted to a limited number of cores
+    for cores in COMPILE_CORES:
+        run_compiletime_benchmark(config, rerun=args.rerun, db=f"results_cores_{cores}.db", suffix=f" {cores} cores",
+                                  cores=cores)
 
     # Measure the runtime performance of the generated code
     run_runtime_benchmark(config)
