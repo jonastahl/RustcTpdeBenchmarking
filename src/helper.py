@@ -12,6 +12,10 @@ env["PATH"] = f"{cargo_bin}{os.pathsep}{env.get('PATH', '')}"
 env["CARGO_PROFILE_DEV_DEBUG"] = "0"
 env["CARGO_PROFILE_RELEASE_DEBUG"] = "0"
 
+TMP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tmp")
+os.makedirs(TMP_DIR, exist_ok=True)
+env["TMPDIR"] = TMP_DIR
+
 def run_task(description, command, cwd=".", print_result=False, allow_failure=False):
     # ANSI escape codes for terminal colors and actions
     YELLOW = '\033[93m'

@@ -1,6 +1,8 @@
 import argparse
+import shutil
 
 from results import results
+from src.helper import TMP_DIR
 from src.benchmarks import COMPILE_CORES, run_compiletime_benchmark, run_runtime_benchmark
 from src.setup import run_setup
 from src.self_profile import run_self_profile
@@ -25,6 +27,13 @@ def main():
                         help="Delete the existing results.db and rerun all benchmarks")
     args = parser.parse_args()
 
+    try:
+        run_benchmarks(args)
+    finally:
+        # Also clean up the temporary directories when a benchmark aborted
+        shutil.rmtree(TMP_DIR, ignore_errors=True)
+
+def run_benchmarks(args):
     # Download and compile all dependencies
     run_setup()
 
