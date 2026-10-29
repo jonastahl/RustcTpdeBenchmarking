@@ -82,7 +82,7 @@ def format_value(value, stdev=None, unit=" ms", signed=False):
     text = f"{value:+.1f}{unit}" if signed else f"{value:.1f}{unit}"
     return text if stdev is None else f"{text} ± {stdev:.1f}{unit}"
 
-def print_table(table: Dict[str, Dict[str, List[float]]], title = "", baseline = None):
+def print_table(table: Dict[str, Dict[str, List[float]]], title = "", baseline = None, transpose = False):
     """Prints one column per key of table, reducing the samples (in seconds) of every cell to their median and standard
     deviation. The baseline column comes first and is the only one with absolute values. All other columns show the
     change of their median relative to the median of the baseline in the same row (1.1 * baseline -> +10.0%) and their
@@ -90,7 +90,9 @@ def print_table(table: Dict[str, Dict[str, List[float]]], title = "", baseline =
     so the absolute difference is shown instead.
 
     The average row is the mean of the medians for the baseline and the geometric mean of the relative medians for all
-    other columns, so the latter only considers the rows both columns have results for."""
+    other columns, so the latter only considers the rows both columns have results for.
+
+    With transpose, the keys of table are the rows and the average is the last column instead."""
     headers = sorted(table.keys(), key=lambda header: (header != baseline, header))
     rows = sorted({key for column in table.values() for key in column})
     medians = {col: {row: statistics.median(samples) for row, samples in column.items()} for col, column in table.items()}
@@ -126,15 +128,18 @@ def print_table(table: Dict[str, Dict[str, List[float]]], title = "", baseline =
     cells = ([[title, *headers]]
              + [[row, *[cell(col, row) for col in headers]] for row in rows]
              + [["Average", *[average(col) for col in headers]]])
-    widths = [max(len(row[i]) for row in cells) for i in range(len(headers) + 1)]
+    if transpose:
+        # One row per key of table instead, the average becomes the last column
+        cells = [list(row) for row in zip(*cells)]
+    widths = [max(len(row[i]) for row in cells) for i in range(len(cells[0]))]
     separator = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
 
     print(separator)
     for index, row in enumerate(cells):
-        if index == len(cells) - 1:
+        if index == len(cells) - 1 and not transpose:
             print(separator)
-        print("| " + " | ".join(row[0].ljust(widths[0]) if i == 0 else row[i].rjust(widths[i])
-                                for i in range(len(headers) + 1)) + " |")
+        print("| " + " | ".join(cell.ljust(widths[0]) if i == 0 else cell.rjust(widths[i])
+                                for i, cell in enumerate(row)) + " |")
         if index == 0:
             print(separator)
     print(separator)

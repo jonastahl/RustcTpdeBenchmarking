@@ -55,6 +55,13 @@ VARIANTS = [
     # MIR inlining and the other MIR optimizations rustc enables at O1
     ("mir_opt_2", None, ["-Zmir-opt-level=2"], []),
 
+    # Parts of the O1 backend, without any IR passes. SelectionDAG still runs with the O0 level (fewer DAG combines).
+    # The optimized register allocation also brings its pipeline (coalescer, machine scheduler, machine LICM, ...).
+    ("isel_dag", None, ["-Cllvm-args=-fast-isel=false"], []),
+    ("regalloc_greedy", None, ["-Cllvm-args=-optimize-regalloc", "-Cllvm-args=-regalloc=greedy"], []),
+    ("isel_dag_regalloc_greedy", None,
+     ["-Cllvm-args=-fast-isel=false", "-Cllvm-args=-optimize-regalloc", "-Cllvm-args=-regalloc=greedy"], []),
+
     # Single passes
     ("inline", "cgscc(inline)", [], []),
     ("sroa", "function(sroa<modify-cfg>)", [], []),
@@ -136,9 +143,9 @@ def print_pipeline():
 def results():
     # Skip the databases of benchmarks that did not run yet
     if (DB_DIR / COMPILE_DB).exists():
-        compiletime_results(db=COMPILE_DB, suffix=" LLVM passes", baseline=BASELINE)
+        compiletime_results(db=COMPILE_DB, suffix=" LLVM passes", baseline=BASELINE, transpose=True)
     if (DB_DIR / RUNTIME_DB).exists():
-        runtime_results(db=RUNTIME_DB, suffix=" LLVM passes", baseline=BASELINE)
+        runtime_results(db=RUNTIME_DB, suffix=" LLVM passes", baseline=BASELINE, transpose=True)
 
 
 def main():

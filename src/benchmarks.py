@@ -65,7 +65,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                  cwd="deps/rustc-perf",
                  allow_failure=True)
 
-def compiletime_results(db="results.db", suffix = "", baseline=BASELINE):
+def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpose=False):
     output = run_task("Reading the results (wall-time)",
              [
                  "sqlite3", "-header", "-csv", db,
@@ -80,7 +80,7 @@ def compiletime_results(db="results.db", suffix = "", baseline=BASELINE):
              cwd="deps/rustc-perf")
 
     results = parse_results(output)
-    print_table(results, f"Compiletime (wall-time){suffix}", baseline)
+    print_table(results, f"Compiletime (wall-time){suffix}", baseline, transpose)
 
 def run_runtime_benchmark(config, db="results.db", group=None, include=None, purge=False, iterations=RUNTIME_ITERATIONS):
     """group: only build this benchmark group, include: only run benchmarks starting with one of these names,
@@ -106,7 +106,7 @@ def run_runtime_benchmark(config, db="results.db", group=None, include=None, pur
                  cwd="deps/rustc-perf",
                  allow_failure=True)
 
-def runtime_results(db="results.db", suffix="", baseline=BASELINE):
+def runtime_results(db="results.db", suffix="", baseline=BASELINE, transpose=False):
     output = run_task("Reading the runtime results",
              [
                  "sqlite3", "-header", "-csv", db,
@@ -120,4 +120,4 @@ def runtime_results(db="results.db", suffix="", baseline=BASELINE):
              ],
              cwd="deps/rustc-perf")
 
-    print_table(parse_results(output), f"Runtime{suffix}", baseline)
+    print_table(parse_results(output), f"Runtime{suffix}", baseline, transpose)
