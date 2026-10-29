@@ -2,6 +2,6 @@
 # rustc_cranelift.sh
 
 exec rustc \
-  +nightly-2026-08-19 \
+  +nightly-2026-10-28 \
   -Z codegen-backend=cranelift \
   "$@"

@@ -2,5 +2,5 @@
 # baseline_llvm.sh
 
 exec rustc \
-  +nightly-2026-08-19 \
+  +nightly-2026-10-28 \
   "$@"
