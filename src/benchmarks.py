@@ -13,7 +13,7 @@ COMPILE_ITERATIONS = 5
 RUNTIME_ITERATIONS = 5
 
 # The compile time benchmarks are additionally run restricted to each of these numbers of cores
-COMPILE_CORES = [8, 4]
+COMPILE_CORES = [8, 4, 2, 1]
 
 DEV_PROFILE = [
     "opt-level=0",
