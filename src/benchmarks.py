@@ -36,8 +36,9 @@ def parse_results(output):
     return samples
 
 def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=(), cores=None,
-                              include=None, purge=False, iterations=COMPILE_ITERATIONS):
-    """include: only run these benchmarks, purge: replace previous results of the same compiler in db"""
+                              include=None, purge=False, iterations=COMPILE_ITERATIONS, threads=None):
+    """include: only run these benchmarks, purge: replace previous results of the same compiler in db,
+    threads: number of threads of the parallel frontend (-Zthreads)"""
     if rerun:
         run_task("Remove previous results",
                  [
@@ -57,6 +58,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      # The collector does not allow combining both filters
                      *(["--exact-match", ",".join(include)] if include else ["--exclude", ",".join(EX_COMPILE_TESTS)]),
                      *(["--purge"] if purge else []),
+                     *(["--frontend-threads", str(threads)] if threads else []),
                      "--id", name,
                      *[arg for setting in settings for arg in ("--cargo-config", f"profile.dev.{setting}")],
                      *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
