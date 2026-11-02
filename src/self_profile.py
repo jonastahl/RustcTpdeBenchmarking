@@ -1,9 +1,10 @@
+import json
 import re
 import shutil
-import subprocess
+from collections import defaultdict
 from pathlib import Path
 
-from src.helper import env, run_task, print_table
+from src.helper import TMP_DIR, run_task, print_table
 
 ROOT = Path(__file__).resolve().parent.parent
 BENCH_ROOT = ROOT / "deps/rustc-perf/collector/compile-benchmarks"
@@ -20,6 +21,12 @@ ITERATIONS = 5
 
 # All other backends are shown relative to this one
 BASELINE = "LLVM"
+
+# The IR size is only shown for these backends
+IR_SIZE_LLVM = "LLVM"
+IR_SIZE_TPDE = "TPDE inline"
+IR_SIZE_FILE = "ir_bytes.json"
+IRSIZE = Path(TMP_DIR) / "irsize"
 
 # LLVM's middle-end optimization of each codegen unit
 LLVM_OPT = ["LLVM_module_optimize"]
@@ -159,6 +166,46 @@ def create_flamegraph(benchmark, name):
     FLAMEGRAPH_DIR.mkdir(exist_ok=True)
     shutil.move(profile.parent / "rustc.svg", FLAMEGRAPH_DIR / f"{benchmark}-{backend_key(name)}.svg")
 
+def measure_llvm_ir(benchmark):
+    """Writes the heap size of the parsed unoptimized LLVM IR per crate into the profile directory of IR_SIZE_LLVM, like
+    tpde_ir_bytes before any optimization. This is a separate build, since -Csave-temps would distort the timings."""
+    bench_dir = BENCH_ROOT / benchmark
+    prof_dir = bench_dir / f"prof-{backend_key(IR_SIZE_LLVM)}"
+    # Backends that failed on this benchmark have no iterations
+    if not iterations(benchmark, IR_SIZE_LLVM) or (prof_dir / IR_SIZE_FILE).exists():
+        return
+
+    target_dir = bench_dir / "target-ir-size"
+    shutil.rmtree(target_dir, ignore_errors=True)
+    output = run_task(f"Build {benchmark} with LLVM IR files",
+                      [
+                          "env", f"RUSTFLAGS=-Znext-solver=coherence {BACKENDS[IR_SIZE_LLVM]['flag']} -Csave-temps",
+                          "cargo", TOOLCHAIN, "build",
+                          "--target", TARGET,
+                          "--target-dir", target_dir.name,
+                      ],
+                      cwd=bench_dir,
+                      allow_failure=True)
+    if output is None:
+        return
+
+    # irsize has to use the LLVM of the toolchain to be able to read its bitcode
+    sysroot = Path(run_task("Find the sysroot", ["rustc", TOOLCHAIN, "--print", "sysroot"]))
+    library = next((sysroot / "lib").glob("libLLVM*.so*"))
+    run_task("Compile irsize",
+             ["cc", "-O2", str(ROOT / "src/irsize.c"), str(library), f"-Wl,-rpath,{library.parent}", "-o", str(IRSIZE)])
+
+    modules = defaultdict(list)
+    for module in target_dir.rglob("*.no-opt.bc"):
+        # Named <crate>-<hash>.<codegen unit>.rcgu.no-opt.bc
+        modules[module.name.split(".")[0].rsplit("-", 1)[0]].append(str(module))
+    sizes = {}
+    for crate, files in modules.items():
+        output = run_task(f"Measure the LLVM IR of {crate}", [str(IRSIZE), *files])
+        sizes[crate] = sum(int(line.rsplit(" ", 1)[1]) for line in output.splitlines())
+    (prof_dir / IR_SIZE_FILE).write_text(json.dumps(sizes))
+    shutil.rmtree(target_dir, ignore_errors=True)
+
 def run_self_profile(rerun=False):
     """Self-profile every benchmark (all crates) with every backend ITERATIONS times, each iteration into
     prof-<backend>/<iteration>. Iterations completed by a previous run are kept unless rerun is set. Backends that fail
@@ -184,8 +231,7 @@ def run_self_profile(rerun=False):
                 # Start from scratch so that every crate is compiled and profiled
                 shutil.rmtree(target_dir, ignore_errors=True)
 
-                rustflags = (f"-Znext-solver=coherence {backend['flag']} "
-                             f"-Zself-profile={partial_dir.relative_to(bench_dir)}")
+                rustflags = f"-Znext-solver=coherence {backend['flag']} -Zself-profile={partial_dir}"
                 output = run_task(f"Self profile on {benchmark} ({name}, iteration {iteration + 1}/{ITERATIONS})",
                          [
                              "env", f"RUSTFLAGS={rustflags}",
@@ -204,6 +250,8 @@ def run_self_profile(rerun=False):
                     break
                 partial_dir.rename(iteration_dir)
 
+        measure_llvm_ir(benchmark)
+
 def phase_times(description, backend, iteration):
     """The time of every phase of one iteration in seconds, summed over all crates (dependencies included) and all
     codegen units."""
@@ -217,6 +265,38 @@ def phase_times(description, backend, iteration):
         obj += sum(times.get(event, 0.0) for event in backend["obj"])
         link += sum(times.get(event, 0.0) for event in LINK)
     return {HEADER_IR: ir, HEADER_OPT: opt, HEADER_LTO: lto, HEADER_OBJ: obj, HEADER_LINK: link, HEADER_TOTAL: total}
+
+def llvm_ir_bytes(benchmark):
+    """The LLVM IR size in bytes of the crates that have a self-profile, so that it covers the same crates as the table."""
+    runs = iterations(benchmark, IR_SIZE_LLVM)
+    file = BENCH_ROOT / benchmark / f"prof-{backend_key(IR_SIZE_LLVM)}" / IR_SIZE_FILE
+    if not runs or not file.exists():
+        return None
+    crates = {profile.name.rsplit("-", 1)[0] for profile in profiles(runs[0])}
+    return sum(size for crate, size in json.loads(file.read_text()).items() if crate in crates)
+
+def tpde_ir_bytes(benchmark):
+    """The tpde_ir_bytes artifact size summed over all crates. The IR doesn't change between iterations, so one is enough."""
+    runs = iterations(benchmark, IR_SIZE_TPDE)
+    if not runs:
+        return None
+    total = 0
+    for profile in profiles(runs[0]):
+        output = run_task(f"Fetch the IR size of {benchmark} ({IR_SIZE_TPDE})", ["summarize", "summarize", str(profile)])
+        match = re.search(r"\|\s*tpde_ir_bytes\s*\|\s*(\d+) bytes", output)
+        if match:
+            total += int(match.group(1))
+    # Backends built before the artifact size existed don't report it
+    return total or None
+
+def print_ir_sizes(benchmark):
+    llvm = llvm_ir_bytes(benchmark)
+    tpde = tpde_ir_bytes(benchmark)
+    if llvm is None and tpde is None:
+        return
+    relative = f" ({(tpde / llvm - 1) * 100:+.1f}%)" if llvm and tpde else ""
+    print(f"IR size: {IR_SIZE_LLVM} {'-' if llvm is None else f'{llvm / 1e6:.1f} MB'}, "
+          f"{IR_SIZE_TPDE} {'-' if tpde is None else f'{tpde / 1e6:.1f} MB'}{relative}")
 
 def self_profile_results():
     for benchmark in BENCHMARKS:
@@ -233,6 +313,7 @@ def self_profile_results():
             print(f"No self-profile results for {benchmark}")
             continue
         print_table(rows, f"Self profile {benchmark}", BASELINE)
+        print_ir_sizes(benchmark)
 
         for name in rows:
             create_flamegraph(benchmark, name)
