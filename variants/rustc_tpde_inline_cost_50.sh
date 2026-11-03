@@ -1,0 +1,11 @@
+#!/bin/bash
+# rustc_tpde_dynamic.sh
+
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
+BACKEND_PATH="${SCRIPT_DIR}/../deps/RustcTpde/target-inline-cost/release/librustc_codegen_tpde.so"
+
+export TPDE_INLINE_COST=50
+exec rustc \
+  +nightly-2026-10-28 \
+  -Z codegen-backend="${BACKEND_PATH}" \
+  "$@"

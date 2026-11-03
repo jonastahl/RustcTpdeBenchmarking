@@ -20,9 +20,14 @@ def run_setup():
              ["cargo", "build", "--release", "--features", "no-cache", "--target-dir", "target-no-cache"],
              "deps/RustcTpde")
 
-    # Build backend without caching
+    # Build backend without inlining
     run_task("Building tpde backend inline",
              ["cargo", "build", "--release", "--features", "inline", "--target-dir", "target-inline"],
+             "deps/RustcTpde")
+
+    # Build backend without inlining by cost
+    run_task("Building tpde backend inline",
+             ["cargo", "build", "--release", "--features", "inline,inline-cost", "--target-dir", "target-inline-cost"],
              "deps/RustcTpde")
 
     # Build llvm tpde backend

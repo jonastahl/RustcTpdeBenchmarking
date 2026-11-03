@@ -19,6 +19,11 @@ def load_variants():
         ("../../variants/rustc_tpde.sh", "rustc_tpde", []),
         ("../../variants/rustc_tpde_no_cache.sh", "rustc_tpde_no_cache", []),
         ("../../variants/rustc_tpde_inline.sh", "rustc_tpde_inline", []),
+        ("../../variants/rustc_tpde_inline_cost_10.sh", "rustc_tpde_inline_10", []),
+        ("../../variants/rustc_tpde_inline_cost_20.sh", "rustc_tpde_inline_20", []),
+        ("../../variants/rustc_tpde_inline_cost_50.sh", "rustc_tpde_inline_50", []),
+        ("../../variants/rustc_tpde_inline_cost_100.sh", "rustc_tpde_inline_100", []),
+        ("../../variants/rustc_tpde_inline_cost_500.sh", "rustc_tpde_inline_500", []),
     ]
 
 def main():
