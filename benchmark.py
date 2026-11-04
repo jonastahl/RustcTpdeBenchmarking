@@ -49,7 +49,7 @@ def run_benchmarks(args):
     run_compiletime_benchmark(config, rerun=args.rerun)
 
     # Run benchmarks with cgu = 1
-    run_compiletime_benchmark(config, rerun=args.rerun, db="results_1.db", suffix=" cgu=1", cargo_configs=["profile.dev.codegen-units=1"])
+    run_compiletime_benchmark(config, rerun=args.rerun, db="results_cgu_1.db", suffix=" cgu=1", cargo_configs=["profile.dev.codegen-units=1"])
 
     # Run benchmarks restricted to a limited number of cores
     for cores in COMPILE_CORES:
