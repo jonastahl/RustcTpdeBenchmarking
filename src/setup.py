@@ -25,11 +25,6 @@ def run_setup():
              ["cargo", "build", "--release", "--features", "inline", "--target-dir", "target-inline"],
              "deps/RustcTpde")
 
-    # Build backend without inlining by cost
-    run_task("Building tpde backend inline",
-             ["cargo", "build", "--release", "--features", "inline,inline-cost", "--target-dir", "target-inline-cost"],
-             "deps/RustcTpde")
-
     # Build llvm tpde backend
     run_task("Building llvm-tpde backend",
              ["./y.sh", "build", "--sysroot", "none"],
