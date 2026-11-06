@@ -93,6 +93,9 @@ def print_table(table: Dict[str, Dict[str, List[float]]], title = "", baseline =
     other columns, so the latter only considers the rows both columns have results for.
 
     With transpose, the keys of table are the rows and the average is the last column instead."""
+    # Without results of the baseline, everything is shown relative to the first column instead
+    if baseline is not None and baseline not in table and table:
+        baseline = next(iter(table))
     headers = sorted(table.keys(), key=lambda header: (header != baseline, header))
     rows = sorted({key for column in table.values() for key in column})
     medians = {col: {row: statistics.median(samples) for row, samples in column.items()} for col, column in table.items()}

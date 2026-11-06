@@ -3,6 +3,23 @@ import io
 
 from src.helper import run_task, print_table
 
+# The variants of the compile time and runtime benchmarks by name: the rustc wrapper script in variants/ and the cargo
+# profile settings of the variant. The names are the same as the ones of the self-profile backends
+# (src.self_profile.BACKENDS).
+VARIANTS = {
+    "Cranelift": ("rustc_cranelift.sh", []),
+    "LLVM": ("rustc_llvm.sh", []),
+    "LLVM O1": ("rustc_llvm.sh", ["opt-level=1"]),
+    "LLVM O2": ("rustc_llvm.sh", ["opt-level=2"]),
+    "LLVM O3": ("rustc_llvm.sh", ["opt-level=3"]),
+    "TPDE LLVM": ("rustc_llvm_tpde.sh", []),
+    "TPDE": ("rustc_tpde.sh", []),
+    "TPDE no-cache": ("rustc_tpde_no_cache.sh", []),
+    # Inlining with the default cost factor of the backend
+    "TPDE inline": ("rustc_tpde_inline.sh", []),
+    **{f"TPDE inline {cost}": (f"rustc_tpde_inline_cost_{cost}.sh", []) for cost in [10, 20, 50, 100, 500]},
+}
+
 # they all contain so far unsupported asm code
 EX_COMPILE_TESTS = ["cargo", "eza", "image", "stm32"]
 EX_RUNTIME_TESTS = ["css"]
@@ -11,9 +28,6 @@ COMPILE_TESTS = ["diesel-2.2.10-new-solver", "nalgebra-0.33.0-new-solver", "ripg
 
 COMPILE_ITERATIONS = 5
 RUNTIME_ITERATIONS = 5
-
-# The compile time benchmarks are additionally run restricted to each of these numbers of cores
-COMPILE_CORES = [8, 4, 2, 1]
 
 DEV_PROFILE = [
     "opt-level=0",
@@ -24,7 +38,29 @@ DEV_PROFILE = [
 ]
 
 # All other variants are shown relative to this one
-BASELINE = "rustc_llvm"
+BASELINE = "LLVM"
+
+def variant_config(names):
+    """The (compiler relative to deps/rustc-perf, name, settings) of the given variants, as taken by
+    run_compiletime_benchmark and run_runtime_benchmark."""
+    return [(f"../../variants/{VARIANTS[name][0]}", name, VARIANTS[name][1]) for name in names]
+
+def compiletime_db(cgu=None, cores=None, threads=None):
+    """The database of the compile time results with these settings (None is the default)."""
+    return ("results"
+            + (f"_cgu_{cgu}" if cgu else "")
+            + (f"_threads_{threads}" if threads else "")
+            + (f"_cores_{cores}" if cores else "")
+            + ".db")
+
+def compiletime_suffix(cgu=None, cores=None, threads=None):
+    return ((f" cgu={cgu}" if cgu else "")
+            + (f" {threads} threads" if threads else "")
+            + (f" {cores} cores" if cores else ""))
+
+def select(results, variants):
+    """Only the results of the given variants, other ones might stem from earlier runs on the same database."""
+    return results if variants is None else {name: results[name] for name in variants if name in results}
 
 def parse_results(output):
     """Parse the csv output of the results query into {compiler: {benchmark: samples}} in seconds.
@@ -67,7 +103,8 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                  cwd="deps/rustc-perf",
                  allow_failure=True)
 
-def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpose=False):
+def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpose=False, variants=None):
+    """Prints and returns {variant: {benchmark: samples}} in seconds, only of the given variants if not None."""
     output = run_task("Reading the results (wall-time)",
              [
                  "sqlite3", "-header", "-csv", db,
@@ -81,8 +118,9 @@ def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpo
              ],
              cwd="deps/rustc-perf")
 
-    results = parse_results(output)
+    results = select(parse_results(output), variants)
     print_table(results, f"Compiletime (wall-time){suffix}", baseline, transpose)
+    return results
 
 def run_runtime_benchmark(config, db="results.db", group=None, include=None, purge=False, iterations=RUNTIME_ITERATIONS):
     """group: only build this benchmark group, include: only run benchmarks starting with one of these names,
@@ -108,7 +146,8 @@ def run_runtime_benchmark(config, db="results.db", group=None, include=None, pur
                  cwd="deps/rustc-perf",
                  allow_failure=True)
 
-def runtime_results(db="results.db", suffix="", baseline=BASELINE, transpose=False):
+def runtime_results(db="results.db", suffix="", baseline=BASELINE, transpose=False, variants=None):
+    """Prints and returns {variant: {benchmark: samples}} in seconds, only of the given variants if not None."""
     output = run_task("Reading the runtime results",
              [
                  "sqlite3", "-header", "-csv", db,
@@ -122,4 +161,6 @@ def runtime_results(db="results.db", suffix="", baseline=BASELINE, transpose=Fal
              ],
              cwd="deps/rustc-perf")
 
-    print_table(parse_results(output), f"Runtime{suffix}", baseline, transpose)
+    results = select(parse_results(output), variants)
+    print_table(results, f"Runtime{suffix}", baseline, transpose)
+    return results

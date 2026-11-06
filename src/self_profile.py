@@ -8,7 +8,6 @@ from src.helper import TMP_DIR, run_task, print_table
 
 ROOT = Path(__file__).resolve().parent.parent
 BENCH_ROOT = ROOT / "deps/rustc-perf/collector/compile-benchmarks"
-BENCHMARKS = ["ripgrep-14.1.1", "regression-31157", "regex-automata-0.4.8", "cranelift-codegen-0.119.0"]
 FLAMEGRAPH_DIR = ROOT / "flamegraphs"
 BACKEND_TPDE = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_NO_CACHE = ROOT / "deps/RustcTpde/target-no-cache/release/librustc_codegen_tpde.so"
@@ -22,9 +21,10 @@ ITERATIONS = 5
 # All other backends are shown relative to this one
 BASELINE = "LLVM"
 
-# The IR size is only shown for these backends
+# The IR size is only shown for these backends. TPDE reports its IR size before any optimization (inlining included), so
+# it is the same for all TPDE backends.
 IR_SIZE_LLVM = "LLVM"
-IR_SIZE_TPDE = "TPDE inline"
+IR_SIZE_TPDE = "TPDE"
 IR_SIZE_FILE = "ir_bytes.json"
 IRSIZE = Path(TMP_DIR) / "irsize"
 
@@ -39,8 +39,9 @@ LLVM_LTO = ["LLVM_thin_lto_global_analysis", "LLVM_thin_lto_optimize"]
 # (ripgrep) it includes running the linker.
 LINK = ["link"]
 
-# Per backend: the rustc flag selecting it (and optionally a custom rustc binary and opt-level) and the self-profile events that make up
-# IR generation, optimization, LTO and object generation. The times of all listed events are summed up.
+# Per backend: the rustc flag selecting it (and optionally a custom rustc binary, opt-level and environment variables)
+# and the self-profile events that make up IR generation, optimization, LTO and object generation. The times of all listed
+# events are summed up.
 BACKENDS = {
     "LLVM": {
         "flag": "",
@@ -93,6 +94,17 @@ BACKENDS = {
         "opt": ["TPDE_module_optimize"],
         "lto": [],
         "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    **{
+        f"TPDE inline {cost}": {
+            "flag": f"-Zcodegen-backend={BACKEND_TPDE_INLINE}",
+            "env": {"TPDE_INLINE_COST": str(cost)},
+            "ir": ["codegen_module"],
+            "opt": ["TPDE_module_optimize"],
+            "lto": [],
+            "obj": ["TPDE_module_codegen_emit_obj"],
+        }
+        for cost in [10, 20, 50, 100, 500]
     },
     "TPDE LLVM": {
         "flag": f"-Zcodegen-backend={BACKEND_TPDE_LLVM}",
@@ -206,50 +218,52 @@ def measure_llvm_ir(benchmark):
     (prof_dir / IR_SIZE_FILE).write_text(json.dumps(sizes))
     shutil.rmtree(target_dir, ignore_errors=True)
 
-def run_self_profile(rerun=False):
-    """Self-profile every benchmark (all crates) with every backend ITERATIONS times, each iteration into
+def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
+    """Self-profile the benchmark (all crates) with each of the given backends ITERATIONS times, each iteration into
     prof-<backend>/<iteration>. Iterations completed by a previous run are kept unless rerun is set. Backends that fail
-    to compile a benchmark are skipped for it."""
-    for benchmark in BENCHMARKS:
-        bench_dir = BENCH_ROOT / benchmark
-        for name, backend in BACKENDS.items():
-            key = backend_key(name)
-            target_dir = bench_dir / f"target-prof-{key}"
-            prof_dir = bench_dir / f"prof-{key}"
+    to compile the benchmark are skipped for it. With ir_size, the size of the unoptimized LLVM IR is measured as well."""
+    bench_dir = BENCH_ROOT / benchmark
+    for name in backends:
+        backend = BACKENDS[name]
+        key = backend_key(name)
+        target_dir = bench_dir / f"target-prof-{key}"
+        prof_dir = bench_dir / f"prof-{key}"
 
-            if rerun:
+        if rerun:
+            shutil.rmtree(prof_dir, ignore_errors=True)
+
+        for iteration in range(ITERATIONS):
+            iteration_dir = prof_dir / str(iteration)
+            if iteration_dir.exists():
+                continue
+
+            # Profile into a separate dir first, so that an interrupted iteration isn't mistaken for a completed one
+            partial_dir = prof_dir / f"{iteration}.partial"
+            shutil.rmtree(partial_dir, ignore_errors=True)
+            # Start from scratch so that every crate is compiled and profiled
+            shutil.rmtree(target_dir, ignore_errors=True)
+
+            rustflags = f"-Znext-solver=coherence {backend['flag']} -Zself-profile={partial_dir}"
+            output = run_task(f"Self profile on {benchmark} ({name}, iteration {iteration + 1}/{ITERATIONS})",
+                     [
+                         "env", f"RUSTFLAGS={rustflags}",
+                         *([f"RUSTC={backend['rustc']}"] if "rustc" in backend else []),
+                         *([f"CARGO_PROFILE_DEV_OPT_LEVEL={backend['opt_level']}"] if "opt_level" in backend else []),
+                         *[f"{variable}={value}" for variable, value in backend.get("env", {}).items()],
+                         "cargo", TOOLCHAIN, "build",
+                         "--target", TARGET,
+                         "--target-dir", target_dir.name,
+                     ],
+                     cwd=bench_dir,
+                     allow_failure=True)
+
+            # Drop all profiles, so that the backend doesn't show up in the results of this benchmark
+            if output is None:
                 shutil.rmtree(prof_dir, ignore_errors=True)
+                break
+            partial_dir.rename(iteration_dir)
 
-            for iteration in range(ITERATIONS):
-                iteration_dir = prof_dir / str(iteration)
-                if iteration_dir.exists():
-                    continue
-
-                # Profile into a separate dir first, so that an interrupted iteration isn't mistaken for a completed one
-                partial_dir = prof_dir / f"{iteration}.partial"
-                shutil.rmtree(partial_dir, ignore_errors=True)
-                # Start from scratch so that every crate is compiled and profiled
-                shutil.rmtree(target_dir, ignore_errors=True)
-
-                rustflags = f"-Znext-solver=coherence {backend['flag']} -Zself-profile={partial_dir}"
-                output = run_task(f"Self profile on {benchmark} ({name}, iteration {iteration + 1}/{ITERATIONS})",
-                         [
-                             "env", f"RUSTFLAGS={rustflags}",
-                             *([f"RUSTC={backend['rustc']}"] if "rustc" in backend else []),
-                             *([f"CARGO_PROFILE_DEV_OPT_LEVEL={backend['opt_level']}"] if "opt_level" in backend else []),
-                             "cargo", TOOLCHAIN, "build",
-                             "--target", TARGET,
-                             "--target-dir", target_dir.name,
-                         ],
-                         cwd=bench_dir,
-                         allow_failure=True)
-
-                # Drop all profiles, so that the backend doesn't show up in the results of this benchmark
-                if output is None:
-                    shutil.rmtree(prof_dir, ignore_errors=True)
-                    break
-                partial_dir.rename(iteration_dir)
-
+    if ir_size:
         measure_llvm_ir(benchmark)
 
 def phase_times(description, backend, iteration):
@@ -289,31 +303,36 @@ def tpde_ir_bytes(benchmark):
     # Backends built before the artifact size existed don't report it
     return total or None
 
-def print_ir_sizes(benchmark):
-    llvm = llvm_ir_bytes(benchmark)
-    tpde = tpde_ir_bytes(benchmark)
+def print_ir_sizes(sizes):
+    llvm = sizes[IR_SIZE_LLVM]
+    tpde = sizes[IR_SIZE_TPDE]
     if llvm is None and tpde is None:
         return
     relative = f" ({(tpde / llvm - 1) * 100:+.1f}%)" if llvm and tpde else ""
     print(f"IR size: {IR_SIZE_LLVM} {'-' if llvm is None else f'{llvm / 1e6:.1f} MB'}, "
           f"{IR_SIZE_TPDE} {'-' if tpde is None else f'{tpde / 1e6:.1f} MB'}{relative}")
 
-def self_profile_results():
-    for benchmark in BENCHMARKS:
-        rows = {}
-        for name, backend in BACKENDS.items():
-            # Backends that failed on this benchmark have no iterations
-            runs = [phase_times(f"{benchmark} ({name}, iteration {index + 1})", backend, iteration)
-                    for index, iteration in enumerate(iterations(benchmark, name))]
-            if not runs:
-                continue
-            rows[name] = {header: [run[header] for run in runs] for header in runs[0]}
-
-        if not rows:
-            print(f"No self-profile results for {benchmark}")
+def self_profile_results(benchmark, backends, ir_size=False):
+    """Prints the phase times of the given backends on the benchmark (and creates their flamegraphs) and returns
+    {"phases": {backend: {phase: samples}}, "ir_size": {IR_SIZE_LLVM: bytes, IR_SIZE_TPDE: bytes} or None}, the times
+    in seconds. Backends without results are left out, IR sizes that could not be measured are None."""
+    rows = {}
+    for name in backends:
+        # Backends that failed on this benchmark have no iterations
+        runs = [phase_times(f"{benchmark} ({name}, iteration {index + 1})", BACKENDS[name], iteration)
+                for index, iteration in enumerate(iterations(benchmark, name))]
+        if not runs:
             continue
-        print_table(rows, f"Self profile {benchmark}", BASELINE)
-        print_ir_sizes(benchmark)
+        rows[name] = {header: [run[header] for run in runs] for header in runs[0]}
 
-        for name in rows:
-            create_flamegraph(benchmark, name)
+    sizes = {IR_SIZE_LLVM: llvm_ir_bytes(benchmark), IR_SIZE_TPDE: tpde_ir_bytes(benchmark)} if ir_size else None
+    if not rows:
+        print(f"No self-profile results for {benchmark}")
+        return {"phases": rows, "ir_size": sizes}
+    print_table(rows, f"Self profile {benchmark}", BASELINE)
+    if sizes:
+        print_ir_sizes(sizes)
+
+    for name in rows:
+        create_flamegraph(benchmark, name)
+    return {"phases": rows, "ir_size": sizes}
