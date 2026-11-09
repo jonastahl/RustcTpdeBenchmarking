@@ -20,7 +20,9 @@ TEXT_SECONDARY = "#52514e"
 GRID = "#e4e3df"
 NEUTRAL = "#8a8984"
 
-VARIANT_ORDER = ["LLVM", "LLVM O1", "LLVM O2", "LLVM O3", "TPDE", "TPDE inline", "TPDE LLVM", "Cranelift"]
+VARIANT_ORDER = ["LLVM", "LLVM O1", "LLVM O2", "LLVM O3", "TPDE", "TPDE inline",
+                 "TPDE inline 10", "TPDE inline 20", "TPDE inline 50", "TPDE inline 100", "TPDE inline 500",
+                 "TPDE LLVM", "Cranelift"]
 VARIANT_COLORS = {
     "LLVM": "#e34948",
     "LLVM O1": "#2a78d6",
@@ -28,12 +30,21 @@ VARIANT_COLORS = {
     "LLVM O3": "#eb6834",
     "TPDE": "#eda100",
     "TPDE inline": "#008300",
+    # One green ramp from light (low cost factor, little inlining) to dark (high cost factor). 50 is the default of the
+    # backend, so it has the color of "TPDE inline".
+    "TPDE inline 10": "#53c44d",
+    "TPDE inline 20": "#33a92f",
+    "TPDE inline 50": "#008300",
+    "TPDE inline 100": "#006e00",
+    "TPDE inline 500": "#024f02",
     "TPDE LLVM": "#6250d6",
-    "Cranelift": "#e87ba4"
+    "Cranelift": "#e87ba4",
 }
+
 
 def variant_color(name):
     return VARIANT_COLORS.get(name, NEUTRAL)
+
 
 plt.rcParams.update({
     "figure.facecolor": SURFACE,
@@ -58,9 +69,11 @@ plt.rcParams.update({
     "legend.frameon": False,
 })
 
+
 def ordered(names):
     """The variants in the order of their colors, unknown ones last."""
     return sorted(names, key=lambda name: VARIANT_ORDER.index(name) if name in VARIANT_ORDER else len(VARIANT_ORDER))
+
 
 def save(fig, name):
     RESULTS_DIR.mkdir(exist_ok=True)
@@ -68,14 +81,18 @@ def save(fig, name):
     plt.close(fig)
     print(f"Graph: {RESULTS_DIR / name}.png")
 
+
 def median_of_series(series):
     return {key: statistics.median(values) * 1000 for (key, values) in series.items()}
+
 
 def medians_of_backend(backends):
     return {key: median_of_series(backends) for (key, backends) in backends.items()}
 
+
 def merge_dicts(a, b):
     return {k: (a.get(k), b.get(k)) for k in a.keys() | b.keys()}
+
 
 def generate_box_plot(plot_name, title, results, runs, VARIANTS):
     # Reduce everything to median
@@ -128,7 +145,7 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS):
 
     df = pd.DataFrame(plot_data)
     backends = ordered(set(df["Backend"]))
-    by_run = isinstance(runs[0], CompileTime)
+    by_run = len(runs) > 1
     sns.boxplot(
         data=df,
         x="Run" if by_run else "Backend",
@@ -150,6 +167,11 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS):
         meanprops={"marker": "D", "markersize": 4, "markerfacecolor": SURFACE, "markeredgecolor": TEXT},
     )
 
+    if not by_run:
+        ax.tick_params(axis="x", labelrotation=20)
+        for label in ax.get_xticklabels():
+            label.set_horizontalalignment("right")
+            label.set_rotation_mode("anchor")
     ax.set_ylabel("Relative to LLVM O0 run")
     ax.axhline(0, color=TEXT_SECONDARY, linestyle='--', linewidth=1, zorder=1, label='LLVM O0 Baseline')
     plt.title(title)
