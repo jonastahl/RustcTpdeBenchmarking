@@ -1,5 +1,5 @@
 """How the cost factor of the TPDE inliner affects compile time and runtime."""
-from src.plots import generate_box_plot
+from src.plots import generate_box_plot, generate_box_plot_self_perf
 from src.runs import CompileTime, Runtime, SelfProfile
 
 
@@ -27,3 +27,9 @@ def evaluate(results):
     generate_box_plot("inline_costs_runtime",
                       "Runtime for different inline costs relative to LLVM -O0",
                       [results[1]], [runs[1]], VARIANTS_run)
+
+    generate_box_plot_self_perf("inline_costs_opt_time",
+                                "Time taken for optimization (ms)",
+                                results[2], runs[2], VARIANTS_run,
+                                "Optimization",
+                                relative=False)

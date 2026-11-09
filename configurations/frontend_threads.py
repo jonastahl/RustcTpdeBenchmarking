@@ -17,6 +17,6 @@ def evaluate(results):
     runs = get_config()
 
     generate_box_plot("frontend_threads",
-                      "Compiletime relative to LLVM -O0",
+                      "Compiletime (ms)",
                       results, runs, VARIANTS,
                       relative=False)

@@ -100,3 +100,6 @@ class SelfProfile:
 
     def name(self):
         return f"SelfProfile"
+
+    def short_name(self):
+        return ""

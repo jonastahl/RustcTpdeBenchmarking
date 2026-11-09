@@ -1,5 +1,6 @@
 import math
 import statistics
+from collections import defaultdict
 from pathlib import Path
 
 import matplotlib
@@ -185,3 +186,13 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True):
     ax.axhline(0, color=TEXT_SECONDARY, linestyle='--', linewidth=1, zorder=1, label='LLVM O0 Baseline')
     plt.title(title)
     save(fig, plot_name)
+
+def generate_box_plot_self_perf(plot_name, title, results, runs, VARIANTS, phase, relative=True):
+    new_results = defaultdict(dict)
+    for test, data in results.items():
+        for backend, values in data['phases'].items():
+            new_results[backend][test] = values[phase]
+
+    results = dict(new_results)
+
+    generate_box_plot(plot_name, title, [results], [runs], VARIANTS, relative)
