@@ -94,7 +94,7 @@ def merge_dicts(a, b):
     return {k: (a.get(k), b.get(k)) for k in a.keys() | b.keys()}
 
 
-def generate_box_plot(plot_name, title, results, runs, VARIANTS):
+def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True):
     # Reduce everything to median
     results = [medians_of_backend(backend) for backend in results]
 
@@ -108,7 +108,7 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS):
         llvm = result["LLVM"]
         print(f"LLVM: {statistics.geometric_mean(llvm.values())}")
         for name, series in result.items():
-            if name == "LLVM":
+            if relative and name == "LLVM":
                 continue
 
             print(f"{name}")
@@ -136,12 +136,21 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS):
             print(
                 f"  relative: mean: {mean:.2f}%, geom-stdev: {geomstdev:.2f}, min: {min_val:.2f}%, max: {max_val:.2f}%")
 
-            for r in ratio:
-                plot_data.append({
-                    "Run": run.short_name(),
-                    "Backend": name,
-                    "Relative Change (%)": r - 100
-                })
+            if relative:
+                for r in ratio:
+                    plot_data.append({
+                        "Run": run.short_name(),
+                        "Backend": name,
+                        "Relative Change (%)": r - 100
+                    })
+            else:
+                for v in series.values():
+                    plot_data.append({
+                        "Run": run.short_name(),
+                        "Backend": name,
+                        "Time (ms)": v
+                    })
+
 
     df = pd.DataFrame(plot_data)
     backends = ordered(set(df["Backend"]))
@@ -150,8 +159,8 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS):
         data=df,
         x="Run" if by_run else "Backend",
         order=[run.short_name() for run in runs] if by_run else backends,
-        y="Relative Change (%)",
-        palette={v: variant_color(v) for v in VARIANTS if v != "LLVM"},
+        y="Relative Change (%)" if relative else "Time (ms)",
+        palette={v: variant_color(v) for v in VARIANTS if not relative or v != "LLVM"},
         hue="Backend",
         hue_order=backends,
         ax=ax,
@@ -167,11 +176,11 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS):
         meanprops={"marker": "D", "markersize": 4, "markerfacecolor": SURFACE, "markeredgecolor": TEXT},
     )
 
-    if not by_run:
-        ax.tick_params(axis="x", labelrotation=20)
-        for label in ax.get_xticklabels():
-            label.set_horizontalalignment("right")
-            label.set_rotation_mode("anchor")
+    ax.tick_params(axis="x", labelrotation=20)
+    for label in ax.get_xticklabels():
+        label.set_horizontalalignment("right")
+        label.set_rotation_mode("anchor")
+
     ax.set_ylabel("Relative to LLVM O0 run")
     ax.axhline(0, color=TEXT_SECONDARY, linestyle='--', linewidth=1, zorder=1, label='LLVM O0 Baseline')
     plt.title(title)

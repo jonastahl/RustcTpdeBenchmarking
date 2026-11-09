@@ -1,4 +1,5 @@
 """Compile time with the parallel frontend (-Zthreads), restricted to different numbers of cores."""
+from src.plots import generate_box_plot
 from src.runs import CompileTime
 
 VARIANTS = ["LLVM", "TPDE"]
@@ -7,10 +8,15 @@ VARIANTS = ["LLVM", "TPDE"]
 FRONTEND_THREADS = [None, 1, 100]
 
 # For now, the 32 cores include hyperthreading siblings
-CORES = [32, 8]
+CORES = [32, 8, 2]
 
 def get_config():
     return [CompileTime(VARIANTS, cores=cores, threads=threads) for threads in FRONTEND_THREADS for cores in CORES]
 
 def evaluate(results):
-    pass
+    runs = get_config()
+
+    generate_box_plot("frontend_threads",
+                      "Compiletime relative to LLVM -O0",
+                      results, runs, VARIANTS,
+                      relative=False)
