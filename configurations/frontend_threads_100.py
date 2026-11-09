@@ -19,4 +19,4 @@ def evaluate(results):
     generate_box_plot("frontend_threads_100",
                       "Compiletime (ms)",
                       results, runs, VARIANTS,
-                      relative=False)
+                      relative="LLVM")

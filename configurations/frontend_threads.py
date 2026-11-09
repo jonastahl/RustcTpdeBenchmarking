@@ -19,4 +19,8 @@ def evaluate(results):
     generate_box_plot("frontend_threads",
                       "Compiletime (ms)",
                       results, runs, VARIANTS,
-                      relative=False)
+                      relative=None)
+
+    generate_box_plot("frontend_threads_rel",
+                      "Compiletime (ms)",
+                      results, runs, VARIANTS)

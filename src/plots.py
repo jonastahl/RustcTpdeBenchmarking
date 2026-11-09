@@ -95,7 +95,7 @@ def merge_dicts(a, b):
     return {k: (a.get(k), b.get(k)) for k in a.keys() | b.keys()}
 
 
-def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True, single_test=False):
+def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative="LLVM", single_test=False):
     # Reduce everything to median
     if not single_test:
         results = [medians_of_backend(config) for config in results]
@@ -118,45 +118,46 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True, 
     for run, result in zip(runs, results):
         print(f"{run.name()}:")
 
-        llvm = result["LLVM"]
-        print(f"LLVM: {statistics.geometric_mean(llvm.values())}")
-        for name, series in result.items():
-            if relative and name == "LLVM":
-                continue
+        if relative:
+            llvm = result[relative]
+            print(f"LLVM: {statistics.geometric_mean(llvm.values())}")
 
-            print(f"{name}")
+            for name, series in result.items():
+                if name == relative:
+                    continue
 
-            merge = merge_dicts(llvm, series)
-            existing = {key: (a, b) for (key, (a, b)) in merge.items() if a is not None and b is not None}
+                print(f"{name}")
 
-            missing = sum(1 for a, b in merge.values() if b is None)
-            if missing > 0:
-                print(f"  missing: {missing}")
+                merge = merge_dicts(llvm, series)
+                existing = {key: (a, b) for (key, (a, b)) in merge.items() if a is not None and b is not None}
 
-            # absolute values
-            mean = statistics.geometric_mean(series.values())
-            diff = mean - statistics.geometric_mean([a for (a, _) in existing.values()])
-            diffs = [b - a for (a, b) in existing.values()]
-            min_diff = min(diffs)
-            max_diff = max(diffs)
-            print(f"  absolute: mean: {mean:.2f}ms, diff: {diff:.2f}ms, min: {min_diff:.2f}ms, max: {max_diff:.2f}ms")
+                missing = sum(1 for a, b in merge.values() if b is None)
+                if missing > 0:
+                    print(f"  missing: {missing}")
 
-            ratio = [b / a * 100 for a, b in existing.values()]
-            min_val = min(ratio) - 100
-            max_val = max(ratio) - 100
-            mean = statistics.geometric_mean(ratio) - 100
-            geomstdev = math.exp(statistics.stdev([math.log(r) for r in ratio]))
-            print(
-                f"  relative: mean: {mean:.2f}%, geom-stdev: {geomstdev:.2f}, min: {min_val:.2f}%, max: {max_val:.2f}%")
+                ratio = [b / a * 100 for a, b in existing.values()]
+                min_val = min(ratio) - 100
+                max_val = max(ratio) - 100
+                mean = statistics.geometric_mean(ratio) - 100
+                geomstdev = math.exp(statistics.stdev([math.log(r) for r in ratio]))
+                print(
+                    f"  relative: mean: {mean:.2f}%, geom-stdev: {geomstdev:.2f}, min: {min_val:.2f}%, max: {max_val:.2f}%")
 
-            if relative:
                 for r in ratio:
                     plot_data.append({
                         "Run": run.short_name(),
                         "Backend": name,
                         "Relative Change (%)": r - 100
                     })
-            else:
+        else:
+            for name, series in result.items():
+                print(f"{name}")
+
+                # absolute values
+                mean = statistics.geometric_mean(series.values())
+                print(
+                    f"  absolute: mean: {mean:.2f}ms")
+
                 for v in series.values():
                     plot_data.append({
                         "Run": run.short_name(),
@@ -195,7 +196,7 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True, 
         label.set_rotation_mode("anchor")
 
     if relative:
-        ax.set_ylabel("Relative to LLVM O0 run")
+        ax.set_ylabel(f"Relative to {relative} run")
     elif isinstance(runs[0], Runtime):
         ax.set_ylabel("Compiletime (ms)")
     else:
@@ -215,7 +216,7 @@ class Wrapper:
     def short_name(self):
         return self._name
 
-def generate_box_plot_self_perf(plot_name, title, results, runs, VARIANTS, phase, relative=True):
+def generate_box_plot_self_perf(plot_name, title, results, runs, VARIANTS, phase, relative="LLVM"):
     new_results = []
     for test, data in results.items():
         new_data = defaultdict()
@@ -223,5 +224,6 @@ def generate_box_plot_self_perf(plot_name, title, results, runs, VARIANTS, phase
             new_data[backend] = values[phase]
         new_results.append(dict(new_data))
 
-    generate_box_plot(plot_name, title, new_results, [Wrapper(name) for name in results.keys()], VARIANTS, relative=relative,
+    generate_box_plot(plot_name, title, new_results, [Wrapper(name) for name in results.keys()], VARIANTS,
+                      relative=relative,
                       single_test=True)
