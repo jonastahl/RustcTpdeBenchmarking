@@ -42,23 +42,42 @@ class CompileTime:
         return f"Compiletime[cores={self.cores} cgu={self.cgu} threads={self.threads}]"
 
     def short_name(self):
-        names = []
-        if self.cores is not None:
-            if self.cores == 1:
-                names.append(f"{self.cores} Core")
-            else:
-                names.append(f"{self.cores} Cores")
-        if self.cgu is not None:
-            if self.cgu == 1:
-                names.append(f"{self.cgu} Cgu")
-            else:
-                names.append(f"{self.cgu} Cgus")
-        if self.threads is not None:
-            if self.threads == 1:
-                names.append(f"{self.threads} Thread")
-            else:
-                names.append(f"{self.threads} Threads")
-        return ", ".join(names)
+        return settings_name(self.cgu, self.cores, self.threads)
+
+
+def settings_name(cgu, cores, threads):
+    names = []
+    if cores is not None:
+        names.append(f"{cores} Core" if cores == 1 else f"{cores} Cores")
+    if cgu is not None:
+        names.append(f"{cgu} Cgu" if cgu == 1 else f"{cgu} Cgus")
+    if threads is not None:
+        names.append(f"{threads} Thread" if threads == 1 else f"{threads} Threads")
+    return ", ".join(names)
+
+
+@dataclass(frozen=True)
+class CheckTime:
+    """Compile time (wall-time) of the compile-time benchmarks of rustc-perf with the Check profile, which runs the
+    frontend without codegen. It doesn't depend on the backend, so it is only measured with LLVM. Together with the
+    CompileTime run of the same settings it gives the share of codegen in the compile time.
+
+    The settings are the same as of CompileTime, a CheckTime shares the database of the CompileTime with its settings.
+
+    Results: {benchmark: [samples]}"""
+    cgu: int | None = None
+    cores: int | None = None
+    threads: int | None = None
+
+    @property
+    def key(self):
+        return self.cgu, self.cores, self.threads
+
+    def name(self):
+        return f"Checktime[cores={self.cores} cgu={self.cgu} threads={self.threads}]"
+
+    def short_name(self):
+        return settings_name(self.cgu, self.cores, self.threads)
 
 
 @dataclass(frozen=True)

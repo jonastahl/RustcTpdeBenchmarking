@@ -72,9 +72,9 @@ def parse_results(output):
     return samples
 
 def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=(), cores=None,
-                              include=None, purge=False, iterations=COMPILE_ITERATIONS, threads=None):
+                              include=None, purge=False, iterations=COMPILE_ITERATIONS, threads=None, profile="Debug"):
     """include: only run these benchmarks, purge: replace previous results of the same compiler in db,
-    threads: number of threads of the parallel frontend (-Zthreads)"""
+    threads: number of threads of the parallel frontend (-Zthreads), profile: the cargo profile of rustc-perf"""
     if rerun:
         run_task("Remove previous results",
                  [
@@ -88,7 +88,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      *pin,
                      "./target/release/collector", "bench_local",
                      "--db", db,
-                     "--profiles", "Debug",
+                     "--profiles", profile,
                      "--scenarios", "Full",
                      "--iterations", str(iterations),
                      # The collector does not allow combining both filters
@@ -103,23 +103,43 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                  cwd="deps/rustc-perf",
                  allow_failure=True)
 
-def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpose=False, variants=None):
-    """Prints and returns {variant: {benchmark: samples}} in seconds, only of the given variants if not None."""
-    output = run_task("Reading the results (wall-time)",
+def read_wall_time(db, profile):
+    """{compiler: {benchmark: samples}} in seconds of one profile (debug or check)."""
+    output = run_task(f"Reading the results (wall-time, {profile})",
              [
                  "sqlite3", "-header", "-csv", db,
-                 """
+                 f"""
                  SELECT a.name as compiler, s.crate as benchmark, s.profile, p.value as seconds
-                    FROM artifact a 
-                    JOIN pstat p ON a.id = p.aid 
-                    JOIN pstat_series s ON p.series = s.id 
-                    WHERE s.metric = 'wall-time';
+                    FROM artifact a
+                    JOIN pstat p ON a.id = p.aid
+                    JOIN pstat_series s ON p.series = s.id
+                    WHERE s.metric = 'wall-time' AND s.profile = '{profile}';
                  """
              ],
              cwd="deps/rustc-perf")
+    return parse_results(output)
 
-    results = select(parse_results(output), variants)
+def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpose=False, variants=None):
+    """Prints and returns {variant: {benchmark: samples}} in seconds, only of the given variants if not None."""
+    results = select(read_wall_time(db, "debug"), variants)
     print_table(results, f"Compiletime (wall-time){suffix}", baseline, transpose)
+    return results
+
+# The check profile doesn't run codegen, so it is the same for all variants and only measured with this one. It has its
+# own id, so that it can't be mistaken for the debug results of the variant.
+CHECK_VARIANT = "LLVM"
+CHECK_ID = "LLVM check"
+
+def run_check_benchmark(rerun=False, db="results.db", suffix="", cargo_configs=(), cores=None, threads=None):
+    """The compile-time benchmarks with the check profile (frontend only) into db, see CheckTime."""
+    run_compiletime_benchmark([(f"../../variants/{VARIANTS[CHECK_VARIANT][0]}", CHECK_ID, VARIANTS[CHECK_VARIANT][1])],
+                              rerun=rerun, db=db, suffix=suffix, cargo_configs=cargo_configs, cores=cores,
+                              threads=threads, profile="Check")
+
+def check_results(db="results.db", suffix=""):
+    """Returns {benchmark: samples} in seconds of the check profile."""
+    results = read_wall_time(db, "check").get(CHECK_ID, {})
+    print(f"Checktime{suffix}: {len(results)} benchmarks")
     return results
 
 def run_runtime_benchmark(config, db="results.db", group=None, include=None, purge=False, iterations=RUNTIME_ITERATIONS):

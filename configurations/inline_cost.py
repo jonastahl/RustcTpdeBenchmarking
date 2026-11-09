@@ -1,5 +1,5 @@
 """How the cost factor of the TPDE inliner affects compile time and runtime."""
-from src.plots import generate_box_plot, generate_box_plot_self_perf
+from src.plots import generate_distribution_plot, generate_distribution_plot_self_perf, generate_heatmap
 from src.runs import CompileTime, Runtime, SelfProfile
 
 
@@ -17,18 +17,19 @@ def get_config():
 def evaluate(results):
     runs = get_config()
 
-    generate_box_plot("inline_costs_compiletime",
-                      "Compiletime for different costs for inlining",
-                      [results[0]], [runs[0]], VARIANTS,
-                      relative="TPDE")
+    generate_distribution_plot("inline_costs_compiletime_distribution",
+                               "Compiletime for different costs for inlining",
+                               [results[0]], [runs[0]],
+                               relative="TPDE")
 
-    generate_box_plot("inline_costs_runtime",
-                      "Runtime for different costs for inlining",
-                      [results[1]], [runs[1]], VARIANTS,
-                      relative="TPDE")
+    generate_distribution_plot("inline_costs_runtime_distribution",
+                               "Runtime for different costs for inlining",
+                               [results[1]], [runs[1]],
+                               relative="TPDE")
 
-    generate_box_plot_self_perf("inline_costs_opt_time",
-                                "Time taken for optimization (ms)",
-                                results[2], runs[2], VARIANTS,
-                                "Optimization",
-                                relative=None)
+    generate_distribution_plot_self_perf("inline_costs_opt_time_distribution",
+                                         "Time taken for optimization (ms)",
+                                         results[2], runs[2],
+                                         "Optimization",
+                                         relative=None)
+

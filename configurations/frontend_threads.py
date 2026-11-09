@@ -1,5 +1,5 @@
 """Compile time with the parallel frontend (-Zthreads), restricted to different numbers of cores."""
-from src.plots import generate_box_plot
+from src.plots import generate_distribution_plot, generate_box_plot
 from src.runs import CompileTime
 
 VARIANTS = ["LLVM", "TPDE"]
@@ -16,11 +16,11 @@ def get_config():
 def evaluate(results):
     runs = get_config()
 
-    generate_box_plot("frontend_threads",
-                      "Compiletime (ms)",
-                      results, runs, VARIANTS,
-                      relative=None)
+    generate_box_plot("frontend_threads_distribution",
+                               "Compiletime (ms)",
+                               results, runs, VARIANTS,
+                               relative=None)
 
-    generate_box_plot("frontend_threads_rel",
-                      "Compiletime (ms)",
-                      results, runs, VARIANTS)
+    generate_distribution_plot("frontend_threads_rel_distribution",
+                               "Compiletime (ms)",
+                               results, runs)
