@@ -5,7 +5,7 @@ from pathlib import Path
 
 import matplotlib
 
-from src.runs import CompileTime
+from src.runs import CompileTime, Runtime
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -87,17 +87,29 @@ def median_of_series(series):
     return {key: statistics.median(values) * 1000 for (key, values) in series.items()}
 
 
-def medians_of_backend(backends):
-    return {key: median_of_series(backends) for (key, backends) in backends.items()}
+def medians_of_backend(config):
+    return {key: median_of_series(config) for (key, config) in config.items()}
 
 
 def merge_dicts(a, b):
     return {k: (a.get(k), b.get(k)) for k in a.keys() | b.keys()}
 
 
-def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True):
+def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True, single_test=False):
     # Reduce everything to median
-    results = [medians_of_backend(backend) for backend in results]
+    if not single_test:
+        results = [medians_of_backend(config) for config in results]
+    else:
+        results = [
+            {
+                backend: {
+                    str(i): value * 1000
+                    for (i, value) in enumerate(values)
+                }
+                for (backend, values) in config.items()
+            }
+            for config in results
+        ]
 
     fig, ax = plt.subplots()
     plot_data = []
@@ -152,7 +164,6 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True):
                         "Time (ms)": v
                     })
 
-
     df = pd.DataFrame(plot_data)
     backends = ordered(set(df["Backend"]))
     by_run = len(runs) > 1
@@ -178,21 +189,39 @@ def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative=True):
     )
 
     ax.tick_params(axis="x", labelrotation=20)
+    ax.xaxis.label.set_visible(False)
     for label in ax.get_xticklabels():
         label.set_horizontalalignment("right")
         label.set_rotation_mode("anchor")
 
-    ax.set_ylabel("Relative to LLVM O0 run")
+    if relative:
+        ax.set_ylabel("Relative to LLVM O0 run")
+    elif isinstance(runs[0], Runtime):
+        ax.set_ylabel("Compiletime (ms)")
+    else:
+        ax.set_ylabel("Compiletime (ms)")
+
     ax.axhline(0, color=TEXT_SECONDARY, linestyle='--', linewidth=1, zorder=1, label='LLVM O0 Baseline')
     plt.title(title)
     save(fig, plot_name)
 
+class Wrapper:
+    def __init__(self, name):
+        self._name = name
+
+    def name(self):
+        return self._name
+
+    def short_name(self):
+        return self._name
+
 def generate_box_plot_self_perf(plot_name, title, results, runs, VARIANTS, phase, relative=True):
-    new_results = defaultdict(dict)
+    new_results = []
     for test, data in results.items():
+        new_data = defaultdict()
         for backend, values in data['phases'].items():
-            new_results[backend][test] = values[phase]
+            new_data[backend] = values[phase]
+        new_results.append(dict(new_data))
 
-    results = dict(new_results)
-
-    generate_box_plot(plot_name, title, [results], [runs], VARIANTS, relative)
+    generate_box_plot(plot_name, title, new_results, [Wrapper(name) for name in results.keys()], VARIANTS, relative=relative,
+                      single_test=True)
