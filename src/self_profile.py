@@ -27,6 +27,8 @@ IR_SIZE_LLVM = "LLVM"
 IR_SIZE_TPDE = "TPDE"
 IR_SIZE_FILE = "ir_bytes.json"
 IRSIZE = Path(TMP_DIR) / "irsize"
+# Summary of all self-profiles of one iteration, see iteration_summary
+SUMMARY_FILE = "summary.json"
 
 # LLVM's middle-end optimization of each codegen unit
 LLVM_OPT = ["LLVM_module_optimize"]
@@ -135,12 +137,13 @@ def parse_seconds(text):
     match = re.fullmatch(r"([\d.]+)\s*(ns|µs|us|ms|s)", text.strip())
     return float(match.group(1)) * UNITS[match.group(2)]
 
-def event_times(description, profile):
-    """Inclusive time (the "Time" column of summarize) per event of one profile and its
-    total cpu time, in seconds."""
+def summarize(description, profile):
+    """Inclusive time (the "Time" column of summarize) per event of one profile in seconds, its total cpu time and its
+    artifact sizes in bytes."""
     output = run_task("Fetch self perf results of " + description,
                       ["summarize", "summarize", str(profile)])
     times = {}
+    artifacts = {}
     total = 0.0
     for line in output.splitlines():
         match = re.fullmatch(r"Total cpu time: (.+)", line.strip())
@@ -148,11 +151,44 @@ def event_times(description, profile):
             total = parse_seconds(match.group(1))
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        # Only the main table has "Self time | % of total time | Time | ..." columns
+        # The artifact table has "Item | Artifact Size" columns
+        if len(cells) == 2 and (match := re.fullmatch(r"(\d+) bytes", cells[1])):
+            artifacts[cells[0]] = int(match.group(1))
+            continue
+        # The main table has "Self time | % of total time | Time | ..." columns
         if len(cells) < 4 or not re.fullmatch(r"[\d.]+\s*(ns|µs|us|ms|s)", cells[3]):
             continue
         times[cells[0].rstrip(" .")] = parse_seconds(cells[3])
-    return times, total
+    return times, total, artifacts
+
+def iteration_summary(description, iteration):
+    """The summarized self-profiles of all crates of one iteration: {"profiles": [file names], "total": seconds,
+    "times": {event: seconds}, "artifacts": {name: bytes}}, the times and sizes summed over all crates.
+
+    The raw profiles are large (GBs per benchmark), so the summary is cached in SUMMARY_FILE of the iteration. Once it
+    exists, only it is needed for the results and the raw profiles don't have to be copied (see fetch_data.sh)."""
+    file = iteration / SUMMARY_FILE
+    if file.exists():
+        return json.loads(file.read_text())
+
+    raw = profiles(iteration)
+    if not raw:
+        raise FileNotFoundError(f"{iteration} has neither {SUMMARY_FILE} nor self-profiles")
+    times = defaultdict(float)
+    artifacts = defaultdict(int)
+    total = 0.0
+    names = []
+    for profile in raw:
+        profile_times, profile_total, profile_artifacts = summarize(f"{description}, {profile.name}", profile)
+        names.append(profile.name)
+        total += profile_total
+        for event, time in profile_times.items():
+            times[event] += time
+        for name, size in profile_artifacts.items():
+            artifacts[name] += size
+    summary = {"profiles": sorted(names), "total": total, "times": dict(times), "artifacts": dict(artifacts)}
+    file.write_text(json.dumps(summary))
+    return summary
 
 def backend_key(name):
     return name.lower().replace(" ", "-")
@@ -169,8 +205,12 @@ def profiles(iteration):
 
 def create_flamegraph(benchmark, name):
     """Render the self-profile of the largest crate of the first iteration of one benchmark and backend (all events) to
-    flamegraphs/<benchmark>-<backend>.svg."""
-    profile = max(profiles(iterations(benchmark, name)[0]), key=lambda path: path.stat().st_size)
+    flamegraphs/<benchmark>-<backend>.svg. Skipped if the raw profiles are not available."""
+    raw = profiles(iterations(benchmark, name)[0])
+    # Only the summaries were copied (see fetch_data.sh)
+    if not raw:
+        return
+    profile = max(raw, key=lambda path: path.stat().st_size)
     # The flamegraph tool takes the profile path without extension and writes rustc.svg into the cwd
     run_task(f"Create flamegraph of {benchmark} ({name})",
              ["flamegraph", profile.stem],
@@ -234,7 +274,10 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
 
         for iteration in range(ITERATIONS):
             iteration_dir = prof_dir / str(iteration)
+            description = f"{benchmark} ({name}, iteration {iteration + 1})"
             if iteration_dir.exists():
+                # Iterations of runs before the summaries existed
+                iteration_summary(description, iteration_dir)
                 continue
 
             # Profile into a separate dir first, so that an interrupted iteration isn't mistaken for a completed one
@@ -261,6 +304,7 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
             if output is None:
                 shutil.rmtree(prof_dir, ignore_errors=True)
                 break
+            iteration_summary(description, partial_dir)
             partial_dir.rename(iteration_dir)
 
     if ir_size:
@@ -269,16 +313,11 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
 def phase_times(description, backend, iteration):
     """The time of every phase of one iteration in seconds, summed over all crates (dependencies included) and all
     codegen units."""
-    ir = opt = lto = obj = link = total = 0.0
-    for profile in profiles(iteration):
-        times, profile_total = event_times(description, profile)
-        total += profile_total
-        ir += sum(times.get(event, 0.0) for event in backend["ir"])
-        opt += sum(times.get(event, 0.0) for event in backend["opt"])
-        lto += sum(times.get(event, 0.0) for event in backend["lto"])
-        obj += sum(times.get(event, 0.0) for event in backend["obj"])
-        link += sum(times.get(event, 0.0) for event in LINK)
-    return {HEADER_IR: ir, HEADER_OPT: opt, HEADER_LTO: lto, HEADER_OBJ: obj, HEADER_LINK: link, HEADER_TOTAL: total}
+    summary = iteration_summary(description, iteration)
+    times = summary["times"]
+    phase = lambda events: sum((times.get(event, 0.0) for event in events), 0.0)
+    return {HEADER_IR: phase(backend["ir"]), HEADER_OPT: phase(backend["opt"]), HEADER_LTO: phase(backend["lto"]),
+            HEADER_OBJ: phase(backend["obj"]), HEADER_LINK: phase(LINK), HEADER_TOTAL: summary["total"]}
 
 def llvm_ir_bytes(benchmark):
     """The LLVM IR size in bytes of the crates that have a self-profile, so that it covers the same crates as the table."""
@@ -286,7 +325,8 @@ def llvm_ir_bytes(benchmark):
     file = BENCH_ROOT / benchmark / f"prof-{backend_key(IR_SIZE_LLVM)}" / IR_SIZE_FILE
     if not runs or not file.exists():
         return None
-    crates = {profile.name.rsplit("-", 1)[0] for profile in profiles(runs[0])}
+    crates = {profile.rsplit("-", 1)[0]
+              for profile in iteration_summary(f"{benchmark} ({IR_SIZE_LLVM}, iteration 1)", runs[0])["profiles"]}
     return sum(size for crate, size in json.loads(file.read_text()).items() if crate in crates)
 
 def tpde_ir_bytes(benchmark):
@@ -294,12 +334,7 @@ def tpde_ir_bytes(benchmark):
     runs = iterations(benchmark, IR_SIZE_TPDE)
     if not runs:
         return None
-    total = 0
-    for profile in profiles(runs[0]):
-        output = run_task(f"Fetch the IR size of {benchmark} ({IR_SIZE_TPDE})", ["summarize", "summarize", str(profile)])
-        match = re.search(r"\|\s*tpde_ir_bytes\s*\|\s*(\d+) bytes", output)
-        if match:
-            total += int(match.group(1))
+    total = iteration_summary(f"{benchmark} ({IR_SIZE_TPDE}, iteration 1)", runs[0])["artifacts"].get("tpde_ir_bytes", 0)
     # Backends built before the artifact size existed don't report it
     return total or None
 
