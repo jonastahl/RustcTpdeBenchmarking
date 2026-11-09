@@ -38,6 +38,28 @@ class CompileTime:
         """Runs with the same key share a database."""
         return self.cgu, self.cores, self.threads
 
+    def name(self):
+        return f"Compiletime[cores={self.cores} cgu={self.cgu} threads={self.threads}]"
+
+    def short_name(self):
+        names = []
+        if self.cores is not None:
+            if self.cores == 1:
+                names.append(f"{self.cores} Core")
+            else:
+                names.append(f"{self.cores} Cores")
+        if self.cgu is not None:
+            if self.cgu == 1:
+                names.append(f"{self.cgu} Cgu")
+            else:
+                names.append(f"{self.cgu} Cgus")
+        if self.threads is not None:
+            if self.threads == 1:
+                names.append(f"{self.threads} Thread")
+            else:
+                names.append(f"{self.threads} Threads")
+        return ", ".join(names)
+
 
 @dataclass(frozen=True)
 class Runtime:
@@ -49,6 +71,12 @@ class Runtime:
     def __post_init__(self):
         object.__setattr__(self, "variants", tuple(self.variants))
         check_names(self.variants, VARIANTS, "variants")
+
+    def name(self):
+        return f"Runtime"
+
+    def short_name(self):
+        return ""
 
 
 @dataclass(frozen=True)
@@ -69,3 +97,6 @@ class SelfProfile:
         check_names(self.backends, BACKENDS, "self-profile backends")
         if self.ir_size:
             check_names([IR_SIZE_LLVM, IR_SIZE_TPDE], self.backends, "backends of the IR size, missing")
+
+    def name(self):
+        return f"SelfProfile"

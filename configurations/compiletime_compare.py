@@ -1,7 +1,9 @@
 """Compile time of all backends, depending on the number of cores and with a single codegen unit."""
+
+from src.plots import generate_box_plot
 from src.runs import CompileTime
 
-VARIANTS = ["LLVM", "Cranelift", "LLVM O1", "TPDE", "TPDE LLVM", "TPDE inline"]
+VARIANTS = ["LLVM", "Cranelift", "TPDE", "TPDE inline"]
 
 # 32 is all physical cores of the benchmark machine. The cores 0..31 being distinct physical cores (no hyperthreading
 # siblings) depends on the CPU numbering, check with `lscpu -e`.
@@ -17,4 +19,8 @@ def get_config():
 
 
 def evaluate(results):
-    *by_cores, cgu_1 = results
+    runs = get_config()
+
+    generate_box_plot("compiletime_compare",
+                      "Compiletime relative to LLVM -O0",
+                      results, runs, VARIANTS)
