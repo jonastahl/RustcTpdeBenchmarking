@@ -18,6 +18,7 @@ VARIANTS = {
     # Inlining with the default cost factor of the backend
     "TPDE inline": ("rustc_tpde_inline.sh", []),
     **{f"TPDE inline {cost}": (f"rustc_tpde_inline_cost_{cost}.sh", []) for cost in [10, 20, 50, 100, 500]},
+    "TPDE inline,promote": ("rustc_tpde_inline_promote.sh", []),
 }
 
 # they all contain so far unsupported asm code

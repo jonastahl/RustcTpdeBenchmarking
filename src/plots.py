@@ -24,7 +24,7 @@ TEXT_SECONDARY = "#52514e"
 GRID = "#e4e3df"
 NEUTRAL = "#8a8984"
 
-VARIANT_ORDER = ["LLVM", "LLVM O1", "LLVM O2", "LLVM O3", "TPDE", "TPDE inline",
+VARIANT_ORDER = ["LLVM", "LLVM O1", "LLVM O2", "LLVM O3", "TPDE", "TPDE inline", "TPDE inline,promote",
                  "TPDE inline 10", "TPDE inline 20", "TPDE inline 50", "TPDE inline 100", "TPDE inline 500",
                  "TPDE LLVM", "Cranelift"]
 VARIANT_COLORS = {
@@ -41,6 +41,7 @@ VARIANT_COLORS = {
     "TPDE inline 50": "#008300",
     "TPDE inline 100": "#006e00",
     "TPDE inline 500": "#024f02",
+    "TPDE inline,promote": "#1e528a",
     "TPDE LLVM": "#6250d6",
     "Cranelift": "#e87ba4",
 }

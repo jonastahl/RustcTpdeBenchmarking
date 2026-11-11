@@ -12,6 +12,7 @@ FLAMEGRAPH_DIR = ROOT / "flamegraphs"
 BACKEND_TPDE = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_NO_CACHE = ROOT / "deps/RustcTpde/target-no-cache/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_INLINE = ROOT / "deps/RustcTpde/target-inline/release/librustc_codegen_tpde.so"
+BACKEND_TPDE_INLINE_PROMOTE = ROOT / "deps/RustcTpde/target-inline-promote/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_LLVM = ROOT / "deps/rustc_codegen_llvm_tpde/dist/lib/librustc_codegen_tpde.so"
 TOOLCHAIN = "+nightly-2026-10-28"
 TARGET = "x86_64-unknown-linux-gnu"
@@ -107,6 +108,13 @@ BACKENDS = {
             "obj": ["TPDE_module_codegen_emit_obj"],
         }
         for cost in [10, 20, 50, 100, 500]
+    },
+    "TPDE inline,promote": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE_INLINE_PROMOTE}",
+        "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
+        "obj": ["TPDE_module_codegen_emit_obj"],
     },
     "TPDE LLVM": {
         "flag": f"-Zcodegen-backend={BACKEND_TPDE_LLVM}",

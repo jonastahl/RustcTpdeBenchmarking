@@ -3,7 +3,7 @@ from src.plots import generate_distribution_plot_self_perf
 from src.runs import SelfProfile
 
 BENCHMARKS = ["ripgrep-14.1.1", "regression-31157", "regex-automata-0.4.8", "cranelift-codegen-0.119.0"]
-BACKENDS = ["LLVM", "TPDE", "TPDE inline", "TPDE LLVM", "Cranelift"]
+BACKENDS = ["LLVM", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE LLVM", "Cranelift"]
 
 
 def get_config():
