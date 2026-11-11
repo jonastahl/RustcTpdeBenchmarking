@@ -11,8 +11,6 @@ BENCH_ROOT = ROOT / "deps/rustc-perf/collector/compile-benchmarks"
 FLAMEGRAPH_DIR = ROOT / "flamegraphs"
 BACKEND_TPDE = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_NO_CACHE = ROOT / "deps/RustcTpde/target-no-cache/release/librustc_codegen_tpde.so"
-BACKEND_TPDE_INLINE = ROOT / "deps/RustcTpde/target-inline/release/librustc_codegen_tpde.so"
-BACKEND_TPDE_INLINE_PROMOTE = ROOT / "deps/RustcTpde/target-inline-promote/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_LLVM = ROOT / "deps/rustc_codegen_llvm_tpde/dist/lib/librustc_codegen_tpde.so"
 TOOLCHAIN = "+nightly-2026-10-28"
 TARGET = "x86_64-unknown-linux-gnu"
@@ -91,8 +89,10 @@ BACKENDS = {
         "lto": [],
         "obj": ["TPDE_module_codegen_emit_obj"],
     },
+    # The TPDE backend selects its optimizations by the opt-level: O1 inlines, O2 additionally promotes allocas
     "TPDE inline": {
-        "flag": f"-Zcodegen-backend={BACKEND_TPDE_INLINE}",
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
+        "opt_level": 1,
         "ir": ["codegen_module"],
         "opt": ["TPDE_module_optimize"],
         "lto": [],
@@ -100,7 +100,8 @@ BACKENDS = {
     },
     **{
         f"TPDE inline {cost}": {
-            "flag": f"-Zcodegen-backend={BACKEND_TPDE_INLINE}",
+            "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
+            "opt_level": 1,
             "env": {"TPDE_INLINE_COST": str(cost)},
             "ir": ["codegen_module"],
             "opt": ["TPDE_module_optimize"],
@@ -110,7 +111,8 @@ BACKENDS = {
         for cost in [10, 20, 50, 100, 500]
     },
     "TPDE inline,promote": {
-        "flag": f"-Zcodegen-backend={BACKEND_TPDE_INLINE_PROMOTE}",
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
+        "opt_level": 2,
         "ir": ["codegen_module"],
         "opt": ["TPDE_module_optimize"],
         "lto": [],

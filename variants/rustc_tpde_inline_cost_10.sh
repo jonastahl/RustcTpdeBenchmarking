@@ -2,7 +2,7 @@
 # rustc_tpde_dynamic.sh
 
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
-BACKEND_PATH="${SCRIPT_DIR}/../deps/RustcTpde/target-inline/release/librustc_codegen_tpde.so"
+BACKEND_PATH="${SCRIPT_DIR}/../deps/RustcTpde/target/release/librustc_codegen_tpde.so"
 
 export TPDE_INLINE_COST=10
 exec rustc \
