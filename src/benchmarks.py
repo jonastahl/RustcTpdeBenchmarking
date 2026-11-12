@@ -18,6 +18,8 @@ VARIANTS = {
     "TPDE inline": ("rustc_tpde.sh", ["opt-level=1"]),
     **{f"TPDE inline {cost}": (f"rustc_tpde_inline_cost_{cost}.sh", ["opt-level=1"]) for cost in [10, 20, 50, 100, 500]},
     "TPDE inline,promote": ("rustc_tpde.sh", ["opt-level=2"]),
+    "Custom LLVM": ("rustc_custom_llvm.sh", []),
+    "Custom TPDE": ("rustc_custom_tpde.sh", []),
 }
 
 # they all contain so far unsupported asm code

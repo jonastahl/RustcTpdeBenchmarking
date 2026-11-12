@@ -7,3 +7,7 @@
 [submodule "llvm-tpde"]
 	path = deps/rustc_codegen_llvm_tpde
 	url = https://github.com/jonastahl/rustc_codegen_llvm_tpde.git
+[submodule "rustc_tpde"]
+	path = deps/rust
+	url = https://github.com/jonastahl/rust
+	branch = tpde
