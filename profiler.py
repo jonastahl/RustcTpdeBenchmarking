@@ -1,11 +1,11 @@
-"""Self-profiles the cranelift-codegen crate with TPDE and converts the profile to the chrome trace
-chrome-profile-tpde.json (open in https://ui.perfetto.dev)."""
+"""Self-profiles the cranelift-codegen crate with the TPDE backend of the stage 1 rustc in deps/rust and converts the
+profile to the chrome trace chrome-profile-tpde.json (open in https://ui.perfetto.dev)."""
 import shutil
 from pathlib import Path
 
 from src.helper import TMP_DIR, run_task
-from src.self_profile import BACKENDS, BENCH_ROOT, TARGET, TOOLCHAIN, profiles
-from src.setup import build_tpde_lib, update_modules
+from src.self_profile import BENCH_ROOT, TARGET, TOOLCHAIN, profiles
+from src.setup import RUST_STAGE1_RUSTC, build_rustc_stage1, update_modules
 
 BENCHMARK = "cranelift-codegen-0.119.0"
 OUT_FILE = Path(__file__).resolve().parent / "chrome-profile-tpde.json"
@@ -13,13 +13,13 @@ OUT_FILE = Path(__file__).resolve().parent / "chrome-profile-tpde.json"
 
 def main():
     update_modules()
-    build_tpde_lib()
+    build_rustc_stage1()
     run_task("Install crox", ["cargo", "install", "--git", "https://github.com/rust-lang/measureme", "crox"])
 
     prof_dir = Path(TMP_DIR) / BENCHMARK
     shutil.rmtree(prof_dir, ignore_errors=True)
     run_task(f"Self profile {BENCHMARK} with TPDE",
-             ["env", f"RUSTFLAGS=-Znext-solver=coherence {BACKENDS['TPDE']['flag']}",
+             ["env", f"RUSTC={RUST_STAGE1_RUSTC}", "RUSTFLAGS=-Znext-solver=coherence -Zcodegen-backend=tpde",
               "cargo", TOOLCHAIN, "rustc", "--target", TARGET, "--target-dir", prof_dir / "target",
               "--", f"-Zself-profile={prof_dir}"],
              cwd=BENCH_ROOT / BENCHMARK)

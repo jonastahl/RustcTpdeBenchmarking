@@ -8,6 +8,7 @@ HOST = "x86_64-unknown-linux-gnu"
 RUST_DIR = os.path.abspath("deps/rust")
 RUST_BUILD_DIR = os.path.join(RUST_DIR, "build-release")
 RUST_INSTALL_DIR = os.path.join(RUST_DIR, "rustc-tpde-release")
+RUST_STAGE1_RUSTC = os.path.join(RUST_DIR, "build", HOST, "stage1", "bin", "rustc")
 
 # To build rustc we need a current version of LLVM as well as bolt for optimized builds
 LLVM_VERSION = "23.1.5"
@@ -66,6 +67,13 @@ def build_custom_rustc(rebuild):
                  "CC": clang,
                  "CXX": clang + "++",
              })
+
+
+def build_rustc_stage1():
+    # Unoptimized (no PGO, BOLT or LTO) so that it quickly rebuilds after changes to the compiler
+    run_task("Building stage 1 rustc",
+             ["./x", "build", "--stage", "1", "library", "--set", "rust.lto=off", "--set", "rust.codegen-units=16"],
+             cwd=RUST_DIR)
 
 
 def update_modules():
