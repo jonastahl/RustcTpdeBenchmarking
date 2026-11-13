@@ -122,6 +122,8 @@ def main():
                         help="Delete the existing results of the selected runs and rerun them")
     parser.add_argument("--results", action="store_true",
                         help="Skip setup and benchmarking, only evaluate the results of previous runs")
+    parser.add_argument("--rebuild", action="store_true",
+                        help="Rebuild the custom rustc even if it is already installed")
     args = parser.parse_args()
 
     unknown = set(args.configurations) - set(available_configurations())
@@ -135,7 +137,7 @@ def main():
     try:
         if not args.results:
             # Download and compile all dependencies
-            run_setup()
+            run_setup(rebuild=args.rebuild)
             jobs.run(args.rerun)
 
         results = jobs.results()

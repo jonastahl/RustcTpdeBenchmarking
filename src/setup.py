@@ -7,6 +7,7 @@ from src.helper import run_task
 HOST = "x86_64-unknown-linux-gnu"
 RUST_DIR = os.path.abspath("deps/rust")
 RUST_BUILD_DIR = os.path.join(RUST_DIR, "build-release")
+RUST_INSTALL_DIR = os.path.join(RUST_DIR, "rustc-tpde-release")
 
 # To build rustc we need a current version of LLVM as well as bolt for optimized builds
 LLVM_VERSION = "23.1.5"
@@ -36,7 +37,38 @@ def download_llvm():
     os.remove(tarball)
 
 
-def run_setup():
+def build_custom_rustc(rebuild):
+    if os.path.exists(os.path.join(RUST_INSTALL_DIR, "bin", "rustc")) and not rebuild:
+        print("[-] Custom rustc is already installed, skipping its build (pass --rebuild to rebuild it)")
+        return
+
+    run_task("Building opt-dist",
+             ["./x", "build", "tools/opt-dist"],
+             cwd=RUST_DIR)
+
+    download_llvm()
+    clang = os.path.join(LLVM_DIR, "bin", "clang")
+    for cmake_build in glob.glob(os.path.join(RUST_BUILD_DIR, HOST, "stage*-codegen", HOST, "release", "build",
+                                              "rustc_codegen_tpde")):
+        shutil.rmtree(cmake_build)
+    run_task("Building integrated llvm tpde (PGO + BOLT)",
+             [
+                 os.path.join(RUST_BUILD_DIR, HOST, "stage1-tools-bin", "opt-dist"), "local",
+                 "--target-triple", HOST,
+                 "--checkout-dir", RUST_DIR,
+                 "--llvm-dir", LLVM_DIR,
+                 "--build-llvm", "false",
+                 "--use-bolt",
+                 "--", "./x", "install",
+             ],
+             cwd=RUST_DIR,
+             extra_env={
+                 "CC": clang,
+                 "CXX": clang + "++",
+             })
+
+
+def run_setup(rebuild=False):
     run_task("Loading all submodules",
              ["git", "submodule", "update", "--init", "--remote"])
 
@@ -69,33 +101,10 @@ def run_setup():
              ["./y.sh", "build", "--sysroot", "none"],
              cwd="deps/rustc_codegen_llvm_tpde")
 
-    run_task("Building opt-dist",
-             ["./x", "build", "tools/opt-dist"],
-             cwd=RUST_DIR)
-
-    download_llvm()
-    clang = os.path.join(LLVM_DIR, "bin", "clang")
-    for cmake_build in glob.glob(os.path.join(RUST_BUILD_DIR, HOST, "stage*-codegen", HOST, "release", "build",
-                                              "rustc_codegen_tpde")):
-        shutil.rmtree(cmake_build)
-    run_task("Building integrated llvm tpde (PGO + BOLT)",
-             [
-                 os.path.join(RUST_BUILD_DIR, HOST, "stage1-tools-bin", "opt-dist"), "local",
-                 "--target-triple", HOST,
-                 "--checkout-dir", RUST_DIR,
-                 "--llvm-dir", LLVM_DIR,
-                 "--build-llvm", "false",
-                 "--use-bolt",
-                 "--", "./x", "install",
-             ],
-             cwd=RUST_DIR,
-             extra_env={
-                 "CC": clang,
-                 "CXX": clang + "++",
-             })
+    build_custom_rustc(rebuild)
 
     run_task("Register built rustc toolchain",
-             ["rustup", "toolchain", "link", "tpde-release", os.path.join(RUST_DIR, "rustc-tpde-release")])
+             ["rustup", "toolchain", "link", "tpde-release", RUST_INSTALL_DIR])
 
     # Building rustc-perf
     run_task("Building rustc-perf",
