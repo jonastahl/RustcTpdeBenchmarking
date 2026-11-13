@@ -6,14 +6,13 @@ from src.helper import run_task
 
 HOST = "x86_64-unknown-linux-gnu"
 RUST_DIR = os.path.abspath("deps/rust")
-RUST_CONFIG = os.path.join(RUST_DIR, "bootstrap.release.toml")
 RUST_BUILD_DIR = os.path.join(RUST_DIR, "build-release")
 
 # To build rustc we need a current version of LLVM as well as bolt for optimized builds
 LLVM_VERSION = "23.1.5"
 LLVM_MAJOR = LLVM_VERSION.split(".")[0]
 LLVM_DIR = os.path.abspath("llvm")
-LLVM_TOOLS = ["clang", "clang++", f"clang-{LLVM_MAJOR}", "llvm-bolt", "merge-fdata", "llvm-profdata"]
+LLVM_TOOLS = ["clang", "clang++", f"clang-{LLVM_MAJOR}", "lld", "ld.lld", "llvm-bolt", "merge-fdata", "llvm-profdata"]
 
 
 def download_llvm():
@@ -31,6 +30,9 @@ def download_llvm():
              ["tar", "-xJf", tarball, "-C", LLVM_DIR, "--strip-components=1", "--wildcards",
               *[f"*/bin/{tool}" for tool in LLVM_TOOLS],
               "*/lib/libbolt_rt_*.a", f"*/lib/clang/{LLVM_MAJOR}/*"])
+    for driver in ["clang", "clang++"]:
+        with open(os.path.join(LLVM_DIR, "bin", f"{driver}.cfg"), "w") as config:
+            config.write("-fuse-ld=lld\n")
     os.remove(tarball)
 
 
@@ -67,11 +69,8 @@ def run_setup():
              ["./y.sh", "build", "--sysroot", "none"],
              cwd="deps/rustc_codegen_llvm_tpde")
 
-    # Build integrated rustc tpde variant. Like the official builds, rustc is optimized with PGO and BOLT by their
-    # pipeline (opt-dist), so that it is comparable to the nightly toolchain of the other variants. CI LLVM is already
-    # optimized, so LLVM isn't built (--build-llvm false). The tpde backend itself isn't PGO-trained.
     run_task("Building opt-dist",
-             ["./x", "build", "opt-dist", "--config", RUST_CONFIG],
+             ["./x", "build", "tools/opt-dist"],
              cwd=RUST_DIR)
 
     download_llvm()
@@ -85,15 +84,12 @@ def run_setup():
                  "--target-triple", HOST,
                  "--checkout-dir", RUST_DIR,
                  "--llvm-dir", LLVM_DIR,
-                 "--build-dir", RUST_BUILD_DIR,
-                 "--artifact-dir", os.path.join(RUST_BUILD_DIR, "opt-artifacts"),
                  "--build-llvm", "false",
                  "--use-bolt",
                  "--", "./x", "install",
              ],
              cwd=RUST_DIR,
              extra_env={
-                 "RUST_BOOTSTRAP_CONFIG": RUST_CONFIG,
                  "CC": clang,
                  "CXX": clang + "++",
              })
