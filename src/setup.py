@@ -1,3 +1,4 @@
+import glob
 import os
 import shutil
 
@@ -8,22 +9,29 @@ RUST_DIR = os.path.abspath("deps/rust")
 RUST_CONFIG = os.path.join(RUST_DIR, "bootstrap.release.toml")
 RUST_BUILD_DIR = os.path.join(RUST_DIR, "build-release")
 
+# To build rustc we need a current version of LLVM as well as bolt for optimized builds
+LLVM_VERSION = "23.1.5"
+LLVM_MAJOR = LLVM_VERSION.split(".")[0]
+LLVM_DIR = os.path.abspath("llvm")
+LLVM_TOOLS = ["clang", "clang++", f"clang-{LLVM_MAJOR}", "llvm-bolt", "merge-fdata", "llvm-profdata"]
 
-def opt_dist_llvm_dir():
-    llvm_dir = os.path.join(RUST_BUILD_DIR, "opt-llvm")
-    tools = {
-        "llvm-profdata": os.path.join(RUST_BUILD_DIR, HOST, "ci-llvm", "bin", "llvm-profdata"),
-        "llvm-bolt": shutil.which("llvm-bolt"),
-        "merge-fdata": shutil.which("merge-fdata"),
-    }
-    os.makedirs(os.path.join(llvm_dir, "bin"), exist_ok=True)
-    for name, target in tools.items():
-        link = os.path.join(llvm_dir, "bin", name)
-        if os.path.lexists(link):
-            os.remove(link)
-        if target:
-            os.symlink(target, link)
-    return llvm_dir, bool(tools["llvm-bolt"] and tools["merge-fdata"])
+
+def download_llvm():
+    name = f"LLVM-{LLVM_VERSION}-Linux-X64.tar.xz"
+    tarball = os.path.join(LLVM_DIR, name)
+    # The tarball is removed after unpacking, so it only remains if a previous download didn't finish
+    if os.path.exists(os.path.join(LLVM_DIR, "bin", f"clang-{LLVM_MAJOR}")) and not os.path.exists(tarball):
+        return
+    shutil.rmtree(LLVM_DIR, ignore_errors=True)
+    os.makedirs(LLVM_DIR)
+    run_task(f"Downloading LLVM {LLVM_VERSION} (~2 GB)",
+             ["curl", "-fsSL", "-o", tarball,
+              f"https://github.com/llvm/llvm-project/releases/download/llvmorg-{LLVM_VERSION}/{name}"])
+    run_task(f"Unpacking LLVM {LLVM_VERSION}",
+             ["tar", "-xJf", tarball, "-C", LLVM_DIR, "--strip-components=1", "--wildcards",
+              *[f"*/bin/{tool}" for tool in LLVM_TOOLS],
+              "*/lib/libbolt_rt_*.a", f"*/lib/clang/{LLVM_MAJOR}/*"])
+    os.remove(tarball)
 
 
 def run_setup():
@@ -66,25 +74,29 @@ def run_setup():
              ["./x", "build", "opt-dist", "--config", RUST_CONFIG],
              cwd=RUST_DIR)
 
-    llvm_dir, use_bolt = opt_dist_llvm_dir()
-    run_task(f"Building integrated llvm tpde ({'PGO + BOLT' if use_bolt else 'PGO only, llvm-bolt/merge-fdata missing'})",
+    download_llvm()
+    clang = os.path.join(LLVM_DIR, "bin", "clang")
+    for cmake_build in glob.glob(os.path.join(RUST_BUILD_DIR, HOST, "stage*-codegen", HOST, "release", "build",
+                                              "rustc_codegen_tpde")):
+        shutil.rmtree(cmake_build)
+    run_task("Building integrated llvm tpde (PGO + BOLT)",
              [
                  os.path.join(RUST_BUILD_DIR, HOST, "stage1-tools-bin", "opt-dist"), "local",
                  "--target-triple", HOST,
-                 # Absolute, the collector of the training runs in the rustc-perf directory with paths derived from it
                  "--checkout-dir", RUST_DIR,
-                 "--llvm-dir", llvm_dir,
+                 "--llvm-dir", LLVM_DIR,
                  "--build-dir", RUST_BUILD_DIR,
-                 # Wiped by opt-dist
                  "--artifact-dir", os.path.join(RUST_BUILD_DIR, "opt-artifacts"),
                  "--build-llvm", "false",
-                 *(["--use-bolt"] if use_bolt else []),
-                 # The final build, opt-dist adds the PGO profiles and --keep-stage
+                 "--use-bolt",
                  "--", "./x", "install",
              ],
              cwd=RUST_DIR,
-             # The x calls of opt-dist can't take --config
-             extra_env={"RUST_BOOTSTRAP_CONFIG": RUST_CONFIG})
+             extra_env={
+                 "RUST_BOOTSTRAP_CONFIG": RUST_CONFIG,
+                 "CC": clang,
+                 "CXX": clang + "++",
+             })
 
     run_task("Register built rustc toolchain",
              ["rustup", "toolchain", "link", "tpde-release", os.path.join(RUST_DIR, "rustc-tpde-release")])
