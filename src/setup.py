@@ -1,6 +1,30 @@
 import os
+import shutil
 
 from src.helper import run_task
+
+HOST = "x86_64-unknown-linux-gnu"
+RUST_DIR = os.path.abspath("deps/rust")
+RUST_CONFIG = os.path.join(RUST_DIR, "bootstrap.release.toml")
+RUST_BUILD_DIR = os.path.join(RUST_DIR, "build-release")
+
+
+def opt_dist_llvm_dir():
+    llvm_dir = os.path.join(RUST_BUILD_DIR, "opt-llvm")
+    tools = {
+        "llvm-profdata": os.path.join(RUST_BUILD_DIR, HOST, "ci-llvm", "bin", "llvm-profdata"),
+        "llvm-bolt": shutil.which("llvm-bolt"),
+        "merge-fdata": shutil.which("merge-fdata"),
+    }
+    os.makedirs(os.path.join(llvm_dir, "bin"), exist_ok=True)
+    for name, target in tools.items():
+        link = os.path.join(llvm_dir, "bin", name)
+        if os.path.lexists(link):
+            os.remove(link)
+        if target:
+            os.symlink(target, link)
+    return llvm_dir, bool(tools["llvm-bolt"] and tools["merge-fdata"])
+
 
 def run_setup():
     run_task("Loading all submodules",
@@ -35,13 +59,35 @@ def run_setup():
              ["./y.sh", "build", "--sysroot", "none"],
              cwd="deps/rustc_codegen_llvm_tpde")
 
-    # Build integrated rustc tpde variant
-    run_task("Building integrated llvm tpde",
-             ["./x", "install", "--config", "bootstrap.release.toml"],
-             cwd="deps/rust")
+    # Build integrated rustc tpde variant. Like the official builds, rustc is optimized with PGO and BOLT by their
+    # pipeline (opt-dist), so that it is comparable to the nightly toolchain of the other variants. CI LLVM is already
+    # optimized, so LLVM isn't built (--build-llvm false). The tpde backend itself isn't PGO-trained.
+    run_task("Building opt-dist",
+             ["./x", "build", "opt-dist", "--config", RUST_CONFIG],
+             cwd=RUST_DIR)
+
+    llvm_dir, use_bolt = opt_dist_llvm_dir()
+    run_task(f"Building integrated llvm tpde ({'PGO + BOLT' if use_bolt else 'PGO only, llvm-bolt/merge-fdata missing'})",
+             [
+                 os.path.join(RUST_BUILD_DIR, HOST, "stage1-tools-bin", "opt-dist"), "local",
+                 "--target-triple", HOST,
+                 # Absolute, the collector of the training runs in the rustc-perf directory with paths derived from it
+                 "--checkout-dir", RUST_DIR,
+                 "--llvm-dir", llvm_dir,
+                 "--build-dir", RUST_BUILD_DIR,
+                 # Wiped by opt-dist
+                 "--artifact-dir", os.path.join(RUST_BUILD_DIR, "opt-artifacts"),
+                 "--build-llvm", "false",
+                 *(["--use-bolt"] if use_bolt else []),
+                 # The final build, opt-dist adds the PGO profiles and --keep-stage
+                 "--", "./x", "install",
+             ],
+             cwd=RUST_DIR,
+             # The x calls of opt-dist can't take --config
+             extra_env={"RUST_BOOTSTRAP_CONFIG": RUST_CONFIG})
 
     run_task("Register built rustc toolchain",
-             ["rustup", "toolchain", "link", "tpde-release", os.path.abspath("deps/rust/rustc-tpde-release")])
+             ["rustup", "toolchain", "link", "tpde-release", os.path.join(RUST_DIR, "rustc-tpde-release")])
 
     # Building rustc-perf
     run_task("Building rustc-perf",

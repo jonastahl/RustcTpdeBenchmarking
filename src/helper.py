@@ -16,7 +16,7 @@ TMP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 os.makedirs(TMP_DIR, exist_ok=True)
 env["TMPDIR"] = TMP_DIR
 
-def run_task(description, command, cwd=".", print_result=False, allow_failure=False):
+def run_task(description, command, cwd=".", print_result=False, allow_failure=False, extra_env=None):
     # ANSI escape codes for terminal colors and actions
     YELLOW = '\033[93m'
     GREEN = '\033[92m'
@@ -34,7 +34,7 @@ def run_task(description, command, cwd=".", print_result=False, allow_failure=Fa
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, # Merge stderr into stdout so we don't miss errors
         text=True,
-        env=env
+        env={**env, **(extra_env or {})}
     )
 
     full_output = []
