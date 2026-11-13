@@ -68,7 +68,7 @@ def build_custom_rustc(rebuild):
              })
 
 
-def run_setup(rebuild=False):
+def update_modules():
     run_task("Loading all submodules",
              ["git", "submodule", "update", "--init", "--remote"])
 
@@ -81,15 +81,21 @@ def run_setup(rebuild=False):
              ["git", "submodule", "update", "--init", "--recursive", "compiler/rustc_codegen_tpde"],
              cwd="deps/rust")
 
+def build_tpde_lib():
+    # Building backend
+    run_task("Building tpde backend",
+             ["cargo", "build", "--release"],
+             "deps/RustcTpde")
+
+def run_setup(rebuild=False):
+    update_modules()
+
     # Installing cxxbridge for cmake
     run_task("Install cxxbridge-cmd for cmake",
              ["cargo", "install", "cxxbridge-cmd"],
              "deps/RustcTpde")
 
-    # Building backend
-    run_task("Building tpde backend",
-             ["cargo", "build", "--release"],
-             "deps/RustcTpde")
+    build_tpde_lib()
 
     # Build backend without caching
     run_task("Building tpde backend no-cache",
