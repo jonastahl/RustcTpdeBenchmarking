@@ -8,4 +8,5 @@ export TPDE_INLINE_COST=100
 exec rustc \
   +nightly-2026-10-28 \
   -Z codegen-backend="${BACKEND_PATH}" \
+  -C llvm-args=inline=yes \
   "$@"

@@ -25,6 +25,7 @@ GRID = "#e4e3df"
 NEUTRAL = "#8a8984"
 
 VARIANT_ORDER = ["LLVM", "LLVM O1", "LLVM O2", "LLVM O3", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote",
+                 "TPDE MIR2", "TPDE inline MIR2", "TPDE inline,promote MIR2",
                  "TPDE inline 10", "TPDE inline 20", "TPDE inline 50", "TPDE inline 100", "TPDE inline 500",
                  "TPDE LLVM"]
 VARIANT_COLORS = {
@@ -42,6 +43,9 @@ VARIANT_COLORS = {
     "TPDE inline 100": "#006e00",
     "TPDE inline 500": "#024f02",
     "TPDE inline,promote": "#1e528a",
+    "TPDE MIR2": "#f5c95c",
+    "TPDE inline MIR2": "#7ccf73",
+    "TPDE inline,promote MIR2": "#6f9fd6",
     "TPDE LLVM": "#6250d6",
     "Cranelift": "#e87ba4",
 }
@@ -425,9 +429,10 @@ def generate_distribution_plot_self_perf(plot_name, title, results, runs, phase,
     generate_distribution_plot(plot_name, title, self_perf_results(results, phase), [Wrapper(phase)], relative)
 
 
-def generate_heatmap(plot_name, title, results, runs, relative="LLVM"):
+def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=None):
     """Every benchmark (rows) with every run and backend (columns), sorted by the mean change over all columns. Missing
-    cells are benchmarks a backend failed on."""
+    cells are benchmarks a backend failed on. limits is the (low, high) ratio of the color scale, beyond which the
+    colors saturate, by default symmetric around the baseline at the 98th percentile of the changes."""
     df = benchmark_frame(results, runs, relative)
     backends = ordered(set(df["Backend"]))
     run_names = [run.short_name() for run in runs]
@@ -450,9 +455,13 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM"):
             return "0" if change == 0 else f"{change:+d}"
 
         annot = table.map(cell)
-        limit = np.nanpercentile(np.abs(table.to_numpy()), 98)
-        ticks = [math.log(tick) for tick in ratio_ticks(math.exp(-limit), math.exp(limit))]
-        style = {"cmap": DIVERGING, "center": 0, "vmin": -limit, "vmax": limit,
+        if limits:
+            low, high = math.log(limits[0]), math.log(limits[1])
+        else:
+            high = np.nanpercentile(np.abs(table.to_numpy()), 98)
+            low = -high
+        ticks = [math.log(tick) for tick in ratio_ticks(math.exp(low), math.exp(high))]
+        style = {"cmap": DIVERGING, "center": 0, "vmin": low, "vmax": high,
                  "cbar_kws": {"format": FuncFormatter(lambda v, _: percent(math.exp(v))), "ticks": ticks,
                               "shrink": 0.5 if len(table) > 15 else 1, "label": f"Relative to {relative}"}}
     else:
@@ -470,11 +479,18 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM"):
     ax.tick_params(axis="y", labelsize=7)
     ax.tick_params(axis="x", labelsize=7)
     ax.grid(False)
-    # Separate the runs
+    # Separate the runs and name them above their group of columns, the columns only name the backend
     if multi:
         for r in range(1, len(run_names)):
             ax.axvline(r * len(backends), color=SURFACE, linewidth=4)
-    ax.set_title(title + (" (change in %)" if relative else " (ms)"))
+        ax.set_xticklabels(backends * len(run_names), rotation=30, ha="right", rotation_mode="anchor")
+        for r, run in enumerate(run_names):
+            ax.annotate(run, xy=((r + 0.5) * len(backends), 1), xycoords=("data", "axes fraction"),
+                        xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=8,
+                        color=TEXT, annotation_clip=False)
+        ax.set_title(title + (" (change in %)" if relative else " (ms)"), pad=16)
+    else:
+        ax.set_title(title + (" (change in %)" if relative else " (ms)"))
     save(fig, plot_name)
 
 
@@ -568,3 +584,9 @@ def generate_scatter_plot(plot_name, title, results, runs, checks, relative="LLV
     fig.legend(handles, labels, title="Backend", loc="outside right upper")
     fig.suptitle(title, fontweight="bold", fontsize=10)
     save(fig, plot_name)
+
+
+def generate_heatmap_self_perf(plot_name, title, results, phases, relative="LLVM", limits=None):
+    """generate_heatmap of several phases of self-profile results, one group of backend columns per phase."""
+    generate_heatmap(plot_name, title, [self_perf_results(results, phase)[0] for phase in phases],
+                     [Wrapper(phase) for phase in phases], relative, limits)

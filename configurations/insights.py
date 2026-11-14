@@ -1,5 +1,5 @@
 """Where the compile time goes: compiler phases of the backends and the IR sizes of LLVM and TPDE."""
-from src.plots import generate_distribution_plot_self_perf
+from src.plots import generate_distribution_plot_self_perf, generate_heatmap_self_perf
 from src.runs import SelfProfile
 
 BENCHMARKS = ["ripgrep-14.1.1", "regression-31157", "regex-automata-0.4.8", "cranelift-codegen-0.119.0"]
@@ -26,3 +26,14 @@ def evaluate(results):
                                          "Object generation relative to LLVM -O0",
                                          results[0], runs[0],
                                          "Obj generation")
+
+    generate_distribution_plot_self_perf("insights_optimization_distribution",
+                                         "Optimization relative to LLVM -O0",
+                                         results[0], runs[0],
+                                         "Optimization")
+
+    generate_heatmap_self_perf("insights_phases_heatmap",
+                               "Compiler phases relative to LLVM -O0",
+                               results[0],
+                               ["IR generation", "Optimization", "Obj generation", "Linking"],
+                               limits=(0.05, 1.1))

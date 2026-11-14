@@ -3,7 +3,7 @@
 from src.plots import generate_distribution_plot, generate_heatmap, generate_scatter_plot
 from src.runs import CheckTime, CompileTime
 
-VARIANTS = ["LLVM", "LLVM O1", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote", "Custom LLVM", "Custom TPDE"]
+VARIANTS = ["LLVM", "LLVM O1", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE MIR2", "TPDE inline MIR2", "TPDE inline,promote MIR2", "Custom LLVM", "Custom TPDE"]
 
 # 32 is all physical cores of the benchmark machine. The cores 0..31 being distinct physical cores (no hyperthreading
 # siblings) depends on the CPU numbering, check with `lscpu -e`.

@@ -15,9 +15,13 @@ VARIANTS = {
     "TPDE LLVM": ("rustc_llvm_tpde.sh", []),
     "TPDE": ("rustc_tpde.sh", []),
     "TPDE no-cache": ("rustc_tpde_no_cache.sh", []),
-    "TPDE inline": ("rustc_tpde.sh", ["opt-level=1"]),
-    **{f"TPDE inline {cost}": (f"rustc_tpde_inline_cost_{cost}.sh", ["opt-level=1"]) for cost in [10, 20, 50, 100, 500]},
-    "TPDE inline,promote": ("rustc_tpde.sh", ["opt-level=2"]),
+    "TPDE inline": ("rustc_tpde_inline.sh", []),
+    "TPDE inline,promote": ("rustc_tpde_inline_promote.sh", []),
+    "TPDE MIR2": ("rustc_tpde.sh", ["opt-level=2"]),
+    "TPDE inline MIR2": ("rustc_tpde_inline.sh", ["opt-level=2"]),
+    "TPDE inline,promote MIR2": ("rustc_tpde_inline_promote.sh", ["opt-level=2"]),
+    # Kept at opt-level 1 like their earlier results
+    **{f"TPDE inline {cost}": (f"rustc_tpde_inline_cost_{cost}.sh", []) for cost in [10, 20, 50, 100, 500]},
     "Custom LLVM": ("rustc_custom_llvm.sh", []),
     "Custom TPDE": ("rustc_custom_tpde.sh", []),
 }

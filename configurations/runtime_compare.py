@@ -3,7 +3,7 @@
 from src.plots import generate_distribution_plot, generate_heatmap
 from src.runs import Runtime
 
-VARIANTS = ["LLVM", "Cranelift", "LLVM O1", "TPDE", "TPDE inline", "TPDE inline,promote"]
+VARIANTS = ["LLVM", "Cranelift", "LLVM O1", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE MIR2", "TPDE inline MIR2", "TPDE inline,promote MIR2"]
 
 
 def get_config():

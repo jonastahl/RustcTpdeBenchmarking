@@ -89,10 +89,41 @@ BACKENDS = {
         "lto": [],
         "obj": ["TPDE_module_codegen_emit_obj"],
     },
-    # The TPDE backend selects its optimizations by the opt-level: O1 inlines, O2 additionally promotes allocas
+    # The optimizations of TPDE are enabled through -Cllvm-args, the opt-level only changes rustc itself (MIR opt-level
+    # 1 at opt-level 0, 2 with the MIR inliner at opt-level 2). See src.benchmarks.VARIANTS.
     "TPDE inline": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE} -Cllvm-args=inline=yes",
+        "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
+        "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "TPDE inline,promote": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE} -Cllvm-args=inline=yes -Cllvm-args=promote=yes",
+        "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
+        "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "TPDE MIR2": {
         "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
-        "opt_level": 1,
+        "opt_level": 2,
+        "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
+        "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "TPDE inline MIR2": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE} -Cllvm-args=inline=yes",
+        "opt_level": 2,
+        "ir": ["codegen_module"],
+        "opt": ["TPDE_module_optimize"],
+        "lto": [],
+        "obj": ["TPDE_module_codegen_emit_obj"],
+    },
+    "TPDE inline,promote MIR2": {
+        "flag": f"-Zcodegen-backend={BACKEND_TPDE} -Cllvm-args=inline=yes -Cllvm-args=promote=yes",
+        "opt_level": 2,
         "ir": ["codegen_module"],
         "opt": ["TPDE_module_optimize"],
         "lto": [],
@@ -100,7 +131,7 @@ BACKENDS = {
     },
     **{
         f"TPDE inline {cost}": {
-            "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
+            "flag": f"-Zcodegen-backend={BACKEND_TPDE} -Cllvm-args=inline=yes",
             "opt_level": 1,
             "env": {"TPDE_INLINE_COST": str(cost)},
             "ir": ["codegen_module"],
@@ -109,14 +140,6 @@ BACKENDS = {
             "obj": ["TPDE_module_codegen_emit_obj"],
         }
         for cost in [10, 20, 50, 100, 500]
-    },
-    "TPDE inline,promote": {
-        "flag": f"-Zcodegen-backend={BACKEND_TPDE}",
-        "opt_level": 2,
-        "ir": ["codegen_module"],
-        "opt": ["TPDE_module_optimize"],
-        "lto": [],
-        "obj": ["TPDE_module_codegen_emit_obj"],
     },
     "TPDE LLVM": {
         "flag": f"-Zcodegen-backend={BACKEND_TPDE_LLVM}",
