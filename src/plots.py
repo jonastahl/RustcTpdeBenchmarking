@@ -590,3 +590,32 @@ def generate_heatmap_self_perf(plot_name, title, results, phases, relative="LLVM
     """generate_heatmap of several phases of self-profile results, one group of backend columns per phase."""
     generate_heatmap(plot_name, title, [self_perf_results(results, phase)[0] for phase in phases],
                      [Wrapper(phase) for phase in phases], relative, limits)
+
+
+def runtime_per_group(results, groups):
+    """Runtime results {variant: {benchmark: samples}} as {variant: {group: [geometric mean of the benchmark medians]}},
+    with groups {group: [benchmark]}. A group is left out for a variant that lacks any of its benchmarks, its mean
+    wouldn't be comparable to the one of the baseline."""
+    per_group = {}
+    for variant, series in results.items():
+        for group, benchmarks in groups.items():
+            if benchmarks and all(benchmark in series for benchmark in benchmarks):
+                mean = statistics.geometric_mean(statistics.median(series[benchmark]) for benchmark in benchmarks)
+                per_group.setdefault(variant, {})[group] = [mean]
+    return per_group
+
+
+def generate_compile_runtime_heatmap(plot_name, title, compiletimes, runtimes, settings, groups, relative="LLVM",
+                                     prefix=""):
+    """generate_heatmap with the compile time next to the runtime of the same runtime benchmark groups (rows), for each
+    of the settings (names of the runs). compiletimes are the results of the copies of the groups, named prefix + group,
+    runtimes the results of their benchmarks, groups maps each group to its benchmarks. The runtime of a group is the
+    geometric mean of its benchmarks."""
+    results, runs = [], []
+    for setting, compiletime, runtime in zip(settings, compiletimes, runtimes):
+        results.append({variant: {benchmark.removeprefix(prefix): samples for benchmark, samples in series.items()}
+                        for variant, series in compiletime.items()})
+        runs.append(Wrapper(f"Compile time, {setting}" if setting else "Compile time"))
+        results.append(runtime_per_group(runtime, groups))
+        runs.append(Wrapper(f"Runtime, {setting}" if setting else "Runtime"))
+    generate_heatmap(plot_name, title, results, runs, relative)

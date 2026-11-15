@@ -6,7 +6,7 @@ results of its runs in evaluate. The docstring of every run describes the shape 
 seconds. Variants and backends that failed are missing from the results."""
 from dataclasses import dataclass
 
-from src.benchmarks import VARIANTS
+from src.benchmarks import DEV_PROFILE, SUITES, VARIANTS
 from src.self_profile import BACKENDS, IR_SIZE_LLVM, IR_SIZE_TPDE
 
 
@@ -21,25 +21,28 @@ class CompileTime:
     """Compile time (wall-time) of the compile-time benchmarks of rustc-perf with each variant.
 
     cgu: number of codegen units, cores: only use the cores 0..cores-1, threads: threads of the parallel frontend
-    (-Zthreads). None keeps the default.
+    (-Zthreads). None keeps the default. suite: "compile" for the compile-time benchmarks, "runtime" for the copies of
+    the runtime benchmarks (one per group, named src.benchmarks.RT_PREFIX + group).
 
     Results: {variant: {benchmark: [samples]}}"""
     variants: tuple
     cgu: int | None = None
     cores: int | None = None
     threads: int | None = None
+    suite: str = "compile"
 
     def __post_init__(self):
         object.__setattr__(self, "variants", tuple(self.variants))
         check_names(self.variants, VARIANTS, "variants")
+        check_names([self.suite], SUITES, "suite")
 
     @property
     def key(self):
         """Runs with the same key share a database."""
-        return self.cgu, self.cores, self.threads
+        return self.cgu, self.cores, self.threads, self.suite
 
     def name(self):
-        return f"Compiletime[cores={self.cores} cgu={self.cgu} threads={self.threads}]"
+        return f"Compiletime[cores={self.cores} cgu={self.cgu} threads={self.threads} suite={self.suite}]"
 
     def short_name(self):
         return settings_name(self.cgu, self.cores, self.threads)
@@ -71,7 +74,7 @@ class CheckTime:
 
     @property
     def key(self):
-        return self.cgu, self.cores, self.threads
+        return self.cgu, self.cores, self.threads, "compile"
 
     def name(self):
         return f"Checktime[cores={self.cores} cgu={self.cgu} threads={self.threads}]"
@@ -84,18 +87,22 @@ class CheckTime:
 class Runtime:
     """Runtime (wall-time) of the runtime benchmarks of rustc-perf, compiled with each variant.
 
+    cgu: number of codegen units, None keeps the one of src.benchmarks.DEV_PROFILE.
+
     Results: {variant: {benchmark: [samples]}}"""
     variants: tuple
+    cgu: int | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "variants", tuple(self.variants))
         check_names(self.variants, VARIANTS, "variants")
 
     def name(self):
-        return f"Runtime"
+        return f"Runtime[cgu={self.cgu}]"
 
     def short_name(self):
-        return ""
+        default = next(int(setting.split("=")[1]) for setting in DEV_PROFILE if setting.startswith("codegen-units="))
+        return settings_name(self.cgu or default, None, None)
 
 
 @dataclass(frozen=True)

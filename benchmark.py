@@ -14,8 +14,8 @@ import shutil
 from pathlib import Path
 
 from src.benchmarks import (check_results, compiletime_db, compiletime_results, compiletime_suffix,
-                            run_check_benchmark, run_compiletime_benchmark, run_runtime_benchmark, runtime_results,
-                            variant_config)
+                            run_check_benchmark, run_compiletime_benchmark, run_runtime_benchmark, runtime_db,
+                            runtime_results, runtime_suffix, variant_config)
 from src.helper import TMP_DIR
 from src.runs import CheckTime, CompileTime, Runtime, SelfProfile
 from src.self_profile import run_self_profile, self_profile_results
@@ -34,11 +34,12 @@ class Jobs:
     """The merged runs of all configurations."""
 
     def __init__(self, runs):
-        # (cgu, cores, threads) -> variants
+        # (cgu, cores, threads, suite) -> variants
         self.compiletime = {}
-        # (cgu, cores, threads) of the check runs
+        # (cgu, cores, threads, suite) of the check runs
         self.check = []
-        self.runtime = []
+        # cgu -> variants
+        self.runtime = {}
         # benchmark -> {"backends": [...], "ir_size": bool}
         self.self_profile = {}
         for run in runs:
@@ -47,7 +48,7 @@ class Jobs:
             elif isinstance(run, CheckTime):
                 add_new(self.check, [run.key])
             elif isinstance(run, Runtime):
-                add_new(self.runtime, run.variants)
+                add_new(self.runtime.setdefault(run.cgu, []), run.variants)
             elif isinstance(run, SelfProfile):
                 for benchmark in run.benchmarks:
                     job = self.self_profile.setdefault(benchmark, {"backends": [], "ir_size": False})
@@ -58,18 +59,18 @@ class Jobs:
 
     def run(self, rerun):
         for key in dict.fromkeys([*self.compiletime, *self.check]):
-            cgu, cores, threads = key
+            cgu, cores, threads, suite = key
             variants = self.compiletime.get(key, [])
-            settings = {"db": compiletime_db(cgu, cores, threads), "suffix": compiletime_suffix(cgu, cores, threads),
+            settings = {"db": compiletime_db(*key), "suffix": compiletime_suffix(*key),
                         "cargo_configs": [f"profile.dev.codegen-units={cgu}"] if cgu else [],
-                        "cores": cores, "threads": threads}
+                        "cores": cores, "threads": threads, "suite": suite}
             if variants:
                 run_compiletime_benchmark(variant_config(variants), rerun=rerun, **settings)
             # The check results share the database, which a rerun of the variants already removed
             if key in self.check:
                 run_check_benchmark(rerun=rerun and not variants, **settings)
-        if self.runtime:
-            run_runtime_benchmark(variant_config(self.runtime))
+        for cgu, variants in self.runtime.items():
+            run_runtime_benchmark(variant_config(variants), db=runtime_db(cgu), cgu=cgu, suffix=runtime_suffix(cgu))
         for benchmark, job in self.self_profile.items():
             run_self_profile(benchmark, job["backends"], ir_size=job["ir_size"], rerun=rerun)
 
@@ -81,7 +82,8 @@ class Jobs:
                 for key, variants in self.compiletime.items()
             },
             "check": {key: check_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key)) for key in self.check},
-            "runtime": runtime_results(variants=self.runtime) if self.runtime else {},
+            "runtime": {cgu: runtime_results(db=runtime_db(cgu), suffix=runtime_suffix(cgu), variants=variants)
+                        for cgu, variants in self.runtime.items()},
             "self_profile": {
                 benchmark: self_profile_results(benchmark, job["backends"], ir_size=job["ir_size"])
                 for benchmark, job in self.self_profile.items()
@@ -97,7 +99,7 @@ def run_results(run, results):
     if isinstance(run, CheckTime):
         return results["check"][run.key]
     if isinstance(run, Runtime):
-        data = results["runtime"]
+        data = results["runtime"][run.cgu]
         return {name: data[name] for name in run.variants if name in data}
     # SelfProfile
     selected = {}

@@ -1,5 +1,7 @@
 import csv
 import io
+import re
+from pathlib import Path
 
 from src.helper import run_task, print_table
 
@@ -30,6 +32,13 @@ VARIANTS = {
 EX_COMPILE_TESTS = ["cargo", "eza", "image", "stm32"]
 EX_RUNTIME_TESTS = ["css"]
 
+# The runtime benchmark groups are also copied to the compile-time benchmarks (see src.setup), as rt-<group>, so that the
+# compile time and runtime of the same code can be compared. They are only part of the compile-time runs of the
+# "runtime" suite, the "compile" suite (all other compile-time benchmarks) leaves them out.
+RT_PREFIX = "rt-"
+SUITES = ["compile", "runtime"]
+RUNTIME_BENCH_ROOT = Path(__file__).resolve().parent.parent / "deps/rustc-perf/collector/runtime-benchmarks"
+
 COMPILE_TESTS = ["diesel-2.2.10-new-solver", "nalgebra-0.33.0-new-solver", "ripgrep-14.1.1", "tokio-1.53.1"]
 
 COMPILE_ITERATIONS = 5
@@ -51,16 +60,18 @@ def variant_config(names):
     run_compiletime_benchmark and run_runtime_benchmark."""
     return [(f"../../variants/{VARIANTS[name][0]}", name, VARIANTS[name][1]) for name in names]
 
-def compiletime_db(cgu=None, cores=None, threads=None):
+def compiletime_db(cgu=None, cores=None, threads=None, suite="compile"):
     """The database of the compile time results with these settings (None is the default)."""
     return ("results"
+            + ("_rt" if suite == "runtime" else "")
             + (f"_cgu_{cgu}" if cgu else "")
             + (f"_threads_{threads}" if threads else "")
             + (f"_cores_{cores}" if cores else "")
             + ".db")
 
-def compiletime_suffix(cgu=None, cores=None, threads=None):
-    return ((f" cgu={cgu}" if cgu else "")
+def compiletime_suffix(cgu=None, cores=None, threads=None, suite="compile"):
+    return ((" runtime benchmarks" if suite == "runtime" else "")
+            + (f" cgu={cgu}" if cgu else "")
             + (f" {threads} threads" if threads else "")
             + (f" {cores} cores" if cores else ""))
 
@@ -78,9 +89,18 @@ def parse_results(output):
     return samples
 
 def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", cargo_configs=(), cores=None,
-                              include=None, purge=False, iterations=COMPILE_ITERATIONS, threads=None, profile="Debug"):
+                              include=None, purge=False, iterations=COMPILE_ITERATIONS, threads=None, profile="Debug",
+                              suite="compile"):
     """include: only run these benchmarks, purge: replace previous results of the same compiler in db,
-    threads: number of threads of the parallel frontend (-Zthreads), profile: the cargo profile of rustc-perf"""
+    threads: number of threads of the parallel frontend (-Zthreads), profile: the cargo profile of rustc-perf,
+    suite: "compile" for the compile-time benchmarks, "runtime" for the copies of the runtime benchmarks (RT_PREFIX)"""
+    if include:
+        selection = ["--exact-match", ",".join(include)]
+    elif suite == "runtime":
+        # --include and --exclude match name prefixes
+        selection = ["--include", RT_PREFIX]
+    else:
+        selection = ["--exclude", ",".join([*EX_COMPILE_TESTS, RT_PREFIX])]
     if rerun:
         run_task("Remove previous results",
                  [
@@ -98,7 +118,7 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "--scenarios", "Full",
                      "--iterations", str(iterations),
                      # The collector does not allow combining both filters
-                     *(["--exact-match", ",".join(include)] if include else ["--exclude", ",".join(EX_COMPILE_TESTS)]),
+                     *selection,
                      *(["--purge"] if purge else []),
                      *(["--frontend-threads", str(threads)] if threads else []),
                      "--id", name,
@@ -136,11 +156,12 @@ def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpo
 CHECK_VARIANT = "LLVM"
 CHECK_ID = "LLVM check"
 
-def run_check_benchmark(rerun=False, db="results.db", suffix="", cargo_configs=(), cores=None, threads=None):
+def run_check_benchmark(rerun=False, db="results.db", suffix="", cargo_configs=(), cores=None, threads=None,
+                        suite="compile"):
     """The compile-time benchmarks with the check profile (frontend only) into db, see CheckTime."""
     run_compiletime_benchmark([(f"../../variants/{VARIANTS[CHECK_VARIANT][0]}", CHECK_ID, VARIANTS[CHECK_VARIANT][1])],
                               rerun=rerun, db=db, suffix=suffix, cargo_configs=cargo_configs, cores=cores,
-                              threads=threads, profile="Check")
+                              threads=threads, profile="Check", suite=suite)
 
 def check_results(db="results.db", suffix=""):
     """Returns {benchmark: samples} in seconds of the check profile."""
@@ -148,14 +169,25 @@ def check_results(db="results.db", suffix=""):
     print(f"Checktime{suffix}: {len(results)} benchmarks")
     return results
 
-def run_runtime_benchmark(config, db="results.db", group=None, include=None, purge=False, iterations=RUNTIME_ITERATIONS):
+def runtime_db(cgu=None):
+    """The database of the runtime results with this number of codegen units (None is the one of DEV_PROFILE)."""
+    return f"results_runtime_cgu_{cgu}.db" if cgu else "results.db"
+
+def runtime_suffix(cgu=None):
+    return f" cgu={cgu}" if cgu else ""
+
+def run_runtime_benchmark(config, db="results.db", group=None, include=None, purge=False, iterations=RUNTIME_ITERATIONS,
+                          cgu=None, suffix=""):
     """group: only build this benchmark group, include: only run benchmarks starting with one of these names,
-    purge: replace previous results of the same compiler in db"""
+    purge: replace previous results of the same compiler in db, cgu: number of codegen units instead of the one of
+    DEV_PROFILE"""
     for (compiler, name, settings) in config:
         # Variant specific settings override the ones of the dev profile
         profile = dict(setting.split("=", 1) for setting in DEV_PROFILE)
         profile.update(setting.split("=", 1) for setting in settings)
-        run_task(f"Running runtime benchmark with compiler {name}",
+        if cgu:
+            profile["codegen-units"] = str(cgu)
+        run_task(f"Running runtime benchmark with compiler {name}{suffix}",
                  [
                      "./target/release/collector", "bench_runtime_local",
                      "--db", db,
@@ -190,3 +222,14 @@ def runtime_results(db="results.db", suffix="", baseline=BASELINE, transpose=Fal
     results = select(parse_results(output), variants)
     print_table(results, f"Runtime{suffix}", baseline, transpose)
     return results
+
+def runtime_benchmark_groups():
+    """{group: [benchmark]} of the runtime benchmarks that aren't excluded, read from the names their source registers."""
+    groups = {}
+    for manifest in sorted(RUNTIME_BENCH_ROOT.glob("*/Cargo.toml")):
+        group = manifest.parent.name
+        if group in EX_RUNTIME_TESTS:
+            continue
+        sources = "".join(path.read_text() for path in (manifest.parent / "src").rglob("*.rs"))
+        groups[group] = re.findall(r'register_benchmark\(\s*"([^"]+)"', sources)
+    return groups

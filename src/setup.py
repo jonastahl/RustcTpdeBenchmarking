@@ -1,7 +1,9 @@
 import glob
+import json
 import os
 import shutil
 
+from src.benchmarks import RT_PREFIX, RUNTIME_BENCH_ROOT, runtime_benchmark_groups
 from src.helper import run_task
 
 HOST = "x86_64-unknown-linux-gnu"
@@ -95,6 +97,33 @@ def build_tpde_lib():
              ["cargo", "build", "--release"],
              "deps/RustcTpde")
 
+COMPILE_BENCH_ROOT = RUNTIME_BENCH_ROOT.parent / "compile-benchmarks"
+
+
+def copy_runtime_benchmarks():
+    benchlib = RUNTIME_BENCH_ROOT.parent / "benchlib"
+    data = RUNTIME_BENCH_ROOT / "data"
+    groups = runtime_benchmark_groups()
+    # Copies of groups that no longer exist or are excluded now
+    for stale in COMPILE_BENCH_ROOT.glob(f"{RT_PREFIX}*"):
+        if stale.name.removeprefix(RT_PREFIX) not in groups:
+            shutil.rmtree(stale)
+    for group in groups:
+        target = COMPILE_BENCH_ROOT / f"{RT_PREFIX}{group}"
+        shutil.rmtree(target, ignore_errors=True)
+        shutil.copytree(RUNTIME_BENCH_ROOT / group, target, ignore=shutil.ignore_patterns("target"))
+
+        manifest = target / "Cargo.toml"
+        manifest.write_text(manifest.read_text().replace('"../../benchlib"', json.dumps(str(benchlib))))
+        for source in (target / "src").rglob("*.rs"):
+            text = source.read_text()
+            if '"../../data/' in text:
+                source.write_text(text.replace('"../../data/', json.dumps(f"{data}/")[:-1]))
+
+        (target / "perf-config.json").write_text(json.dumps({"category": "primary", "artifact": "binary"}, indent=4))
+    print(f"[-] Copied {len(groups)} runtime benchmark groups to the compile-time benchmarks ({RT_PREFIX}*)")
+
+
 def run_setup(rebuild=False):
     update_modules()
 
@@ -124,6 +153,8 @@ def run_setup(rebuild=False):
     run_task("Building rustc-perf",
              ["cargo", "build", "--release", "-p", "collector"],
              "deps/rustc-perf")
+
+    copy_runtime_benchmarks()
 
     # Install measureme for results of self perf (summarize) and the flamegraph of it
     run_task("Install self-perf measureme",
