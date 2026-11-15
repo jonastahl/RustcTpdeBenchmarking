@@ -7,9 +7,7 @@ from src.runs import BackendTime, CompileTime, Runtime, SelfProfile
 
 VARIANTS = ["TPDE", "TPDE inline 10", "TPDE inline 20", "TPDE inline 50", "TPDE inline 100", "TPDE inline 500"]
 
-# The default cost factor of the inliner. TPDE without inlining has (almost) no optimization time, so it would make a
-# poor baseline for it.
-BASELINE = "TPDE inline 50"
+BASELINE = "TPDE"
 
 OPTIMIZATION = "Optimization"
 
