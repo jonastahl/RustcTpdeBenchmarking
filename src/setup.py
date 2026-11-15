@@ -98,6 +98,8 @@ def build_tpde_lib():
              "deps/RustcTpde")
 
 COMPILE_BENCH_ROOT = RUNTIME_BENCH_ROOT.parent / "compile-benchmarks"
+# The self-profile results and target dirs in a benchmark (src.self_profile), kept when copying
+SELF_PROFILE_DIRS = ("prof-", "target-prof-")
 
 
 def copy_runtime_benchmarks():
@@ -110,8 +112,16 @@ def copy_runtime_benchmarks():
             shutil.rmtree(stale)
     for group in groups:
         target = COMPILE_BENCH_ROOT / f"{RT_PREFIX}{group}"
-        shutil.rmtree(target, ignore_errors=True)
-        shutil.copytree(RUNTIME_BENCH_ROOT / group, target, ignore=shutil.ignore_patterns("target"))
+        # Everything but the results of the self-profiles (src.self_profile) is copied again
+        if target.exists():
+            for item in target.iterdir():
+                if item.name.startswith(SELF_PROFILE_DIRS):
+                    continue
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+        shutil.copytree(RUNTIME_BENCH_ROOT / group, target, ignore=shutil.ignore_patterns("target"), dirs_exist_ok=True)
 
         manifest = target / "Cargo.toml"
         manifest.write_text(manifest.read_text().replace('"../../benchlib"', json.dumps(str(benchlib))))

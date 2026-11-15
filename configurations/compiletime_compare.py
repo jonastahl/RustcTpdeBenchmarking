@@ -1,6 +1,6 @@
 """Compile time of all backends, depending on the number of cores and with a single codegen unit."""
 
-from src.plots import generate_distribution_plot, generate_heatmap, generate_scatter_plot
+from src.plots import codegen_shares, generate_heatmap
 from src.runs import CheckTime, CompileTime
 
 VARIANTS = ["LLVM", "LLVM O1", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE MIR2", "TPDE inline MIR2", "TPDE inline,promote MIR2", "Custom LLVM", "Custom TPDE"]
@@ -16,7 +16,7 @@ SETTINGS = [*[{"cores": cores} for cores in CORES], {"cgu": 1}]
 def get_config():
     return [
         *[CompileTime(VARIANTS, **settings) for settings in SETTINGS],
-        # The time without codegen, for the share of codegen in the scatter plot
+        # The time without codegen, for the share of the backend in the compile time
         *[CheckTime(**settings) for settings in SETTINGS],
     ]
 
@@ -27,6 +27,9 @@ def evaluate(results):
     compile_results, check_results = results[:len(SETTINGS)], results[len(SETTINGS):]
     title = "Compiletime relative to LLVM -O0"
 
-    generate_distribution_plot("compiletime_compare_distribution", title, compile_results, compile_runs)
-    generate_scatter_plot("compiletime_compare_scatter", title, compile_results, compile_runs, check_results)
-    generate_heatmap("compiletime_compare_heatmap", title, compile_results, compile_runs)
+    # The share of the backend (everything the check profile skips, linking included) in the compile time with LLVM,
+    # per run at the end of each row
+    shares = {run.short_name(): codegen_shares(result, check, "LLVM")
+              for run, result, check in zip(compile_runs, compile_results, check_results) if "LLVM" in result}
+    generate_heatmap("compiletime_compare_heatmap", title, compile_results, compile_runs,
+                     extra=shares, extra_title="Backend share (LLVM)")

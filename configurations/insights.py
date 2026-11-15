@@ -1,39 +1,34 @@
-"""Where the compile time goes: compiler phases of the backends and the IR sizes of LLVM and TPDE."""
-from src.plots import generate_distribution_plot_self_perf, generate_heatmap_self_perf
+"""Where the compile time goes: compiler phases of the backends."""
+from src.plots import Wrapper, generate_heatmap, generate_heatmap_self_perf, self_perf_results
 from src.runs import SelfProfile
 
 BENCHMARKS = ["ripgrep-14.1.1", "regression-31157", "regex-automata-0.4.8", "cranelift-codegen-0.119.0"]
 BACKENDS = ["LLVM", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE LLVM", "Cranelift"]
 
+# The phases of src.self_profile, with the name of their plot
+PHASES = {
+    "IR generation": "ir_gen",
+    "Optimization": "optimization",
+    "Obj generation": "obj_gen",
+    "Linking": "linking",
+    "Total cpu time": "total",
+}
+
 
 def get_config():
     return [SelfProfile(BENCHMARKS, BACKENDS, ir_size=True)]
 
+
 def evaluate(results):
-    runs = get_config()
-
-    generate_distribution_plot_self_perf("insights_ir_gen_distribution",
-                                         "IR generation relative to LLVM -O0",
-                                         results[0], runs[0],
-                                         "IR generation")
-
-    generate_distribution_plot_self_perf("insights_linking_distribution",
-                                         "Link time relative to LLVM -O0",
-                                         results[0], runs[0],
-                                         "Linking")
-
-    generate_distribution_plot_self_perf("insights_obj_gen_distribution",
-                                         "Object generation relative to LLVM -O0",
-                                         results[0], runs[0],
-                                         "Obj generation")
-
-    generate_distribution_plot_self_perf("insights_optimization_distribution",
-                                         "Optimization relative to LLVM -O0",
-                                         results[0], runs[0],
-                                         "Optimization")
-
+    # All phases together
     generate_heatmap_self_perf("insights_phases_heatmap",
                                "Compiler phases relative to LLVM -O0",
                                results[0],
-                               ["IR generation", "Optimization", "Obj generation", "Linking"],
+                               list(PHASES),
                                limits=(0.05, 1.1))
+
+    # Each phase separately
+    for phase, name in PHASES.items():
+        generate_heatmap(f"insights_{name}_heatmap",
+                         f"{phase} relative to LLVM -O0",
+                         self_perf_results(results[0], phase), [Wrapper(phase)])

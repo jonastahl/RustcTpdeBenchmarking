@@ -1,35 +1,52 @@
-"""How the cost factor of the TPDE inliner affects compile time and runtime."""
-from src.plots import generate_distribution_plot, generate_distribution_plot_self_perf, generate_heatmap
+"""How the cost factor of the TPDE inliner affects compile time, runtime and the time of the optimization, all on the
+runtime benchmarks (their compile-time copies src.benchmarks.RT_PREFIX for the compile time and the self-profiles)."""
+from src.benchmarks import RT_PREFIX, runtime_benchmark_groups
+from src.plots import Wrapper, compile_runtime_runs, generate_heatmap, self_perf_results, strip_prefix
 from src.runs import CompileTime, Runtime, SelfProfile
-
 
 VARIANTS = ["TPDE", "TPDE inline 10", "TPDE inline 20", "TPDE inline 50", "TPDE inline 100", "TPDE inline 500"]
 
+# The default cost factor of the inliner. TPDE without inlining has (almost) no optimization time, so it would make a
+# poor baseline for it.
+BASELINE = "TPDE inline 50"
+
+OPTIMIZATION = "Optimization"
+
 
 def get_config():
+    groups = runtime_benchmark_groups()
     return [
-        CompileTime(VARIANTS, cgu=1),
+        CompileTime(VARIANTS, suite="runtime"),
         Runtime(VARIANTS),
-        SelfProfile(["cranelift-codegen-0.119.0", "regex-automata-0.4.8"], VARIANTS),
+        SelfProfile([f"{RT_PREFIX}{group}" for group in groups], VARIANTS),
     ]
 
 
 def evaluate(results):
-    runs = get_config()
+    compiletime, runtime, self_profile = results
+    groups = runtime_benchmark_groups()
+    optimization = strip_prefix(self_perf_results(self_profile, OPTIMIZATION)[0], RT_PREFIX)
+    title = f"relative to {BASELINE}"
 
-    generate_distribution_plot("inline_costs_compiletime_distribution",
-                               "Compiletime for different costs for inlining",
-                               [results[0]], [runs[0]],
-                               relative="TPDE")
+    # Everything together, one row per runtime benchmark group
+    heatmap_results, heatmap_runs = compile_runtime_runs([compiletime], [runtime], [""], groups, RT_PREFIX)
+    heatmap_results.append(optimization)
+    heatmap_runs.append(Wrapper("Optimization time"))
+    generate_heatmap("inline_costs_heatmap",
+                     f"Inlining cost factors {title}",
+                     heatmap_results, heatmap_runs,
+                     relative=BASELINE)
 
-    generate_distribution_plot("inline_costs_runtime_distribution",
-                               "Runtime for different costs for inlining",
-                               [results[1]], [runs[1]],
-                               relative="TPDE")
-
-    generate_distribution_plot_self_perf("inline_costs_opt_time_distribution",
-                                         "Time taken for optimization (ms)",
-                                         results[2], runs[2],
-                                         "Optimization",
-                                         relative=None)
-
+    # And each separately
+    generate_heatmap("inline_costs_compiletime_heatmap",
+                     f"Compile time {title}",
+                     [strip_prefix(compiletime, RT_PREFIX)], [Wrapper("Compile time")],
+                     relative=BASELINE)
+    generate_heatmap("inline_costs_runtime_heatmap",
+                     f"Runtime {title}",
+                     [runtime], [Wrapper("Runtime")],
+                     relative=BASELINE)
+    generate_heatmap("inline_costs_opt_time_heatmap",
+                     f"Optimization time {title}",
+                     [optimization], [Wrapper("Optimization time")],
+                     relative=BASELINE)

@@ -429,17 +429,29 @@ def generate_distribution_plot_self_perf(plot_name, title, results, runs, phase,
     generate_distribution_plot(plot_name, title, self_perf_results(results, phase), [Wrapper(phase)], relative)
 
 
-def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=None):
+def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=None, extra=None, extra_title=None):
     """Every benchmark (rows) with every run and backend (columns), sorted by the mean change over all columns. Missing
-    cells are benchmarks a backend failed on. limits is the (low, high) ratio of the color scale, beyond which the
-    colors saturate, by default symmetric around the baseline at the 98th percentile of the changes."""
+    cells are benchmarks a backend failed on, backends without any result in a run get no column. limits is the
+    (low, high) ratio of the color scale, beyond which the colors saturate, by default symmetric around the baseline at
+    the 98th percentile of the changes.
+
+    extra are additional columns {label: {benchmark: share}} with shares between 0 and 1, shown in % at the end of each
+    row with their own color scale, under extra_title."""
     df = benchmark_frame(results, runs, relative)
+    if df.empty:
+        print(f"Heatmap {plot_name}: no results, skipped")
+        return
     backends = ordered(set(df["Backend"]))
     run_names = [run.short_name() for run in runs]
     multi = len(run_names) > 1
 
     df["Column"] = [f"{run}\n{backend}" if multi else backend for run, backend in zip(df["Run"], df["Backend"])]
-    columns = [f"{run}\n{backend}" if multi else backend for run in run_names for backend in backends]
+    present = set(df["Column"])
+    # The backends with results per run, runs without any are left out
+    run_backends = [(run, [backend for backend in backends if (f"{run}\n{backend}" if multi else backend) in present])
+                    for run in run_names]
+    run_backends = [(run, names) for run, names in run_backends if names]
+    columns = [f"{run}\n{backend}" if multi else backend for run, names in run_backends for backend in names]
     if relative:
         df["Value"] = np.log(df["Ratio"])
     else:
@@ -471,7 +483,15 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
                               "shrink": 0.5 if len(table) > 15 else 1,
                               "label": "Time (ms)"}}
 
-    fig, ax = plt.subplots(figsize=(1.6 + 0.62 * len(columns), 1.2 + 0.19 * len(table)))
+    height = 1.2 + 0.19 * len(table)
+    if extra:
+        fig, (ax, extra_ax, cbar_ax) = plt.subplots(
+            1, 3, figsize=(2.2 + 0.62 * (len(columns) + len(extra)), height),
+            gridspec_kw={"width_ratios": [len(columns), len(extra), 0.3], "wspace": 0.04 * 20 / (len(columns) + 5)})
+        style["cbar_ax"] = cbar_ax
+        del style["cbar_kws"]["shrink"]
+    else:
+        fig, ax = plt.subplots(figsize=(1.6 + 0.62 * len(columns), height))
     sns.heatmap(table, annot=annot, fmt="", annot_kws={"fontsize": 6}, linewidths=0.5, linecolor=SURFACE, ax=ax,
                 **style)
     ax.set_ylabel("")
@@ -481,16 +501,38 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
     ax.grid(False)
     # Separate the runs and name them above their group of columns, the columns only name the backend
     if multi:
-        for r in range(1, len(run_names)):
-            ax.axvline(r * len(backends), color=SURFACE, linewidth=4)
-        ax.set_xticklabels(backends * len(run_names), rotation=30, ha="right", rotation_mode="anchor")
-        for r, run in enumerate(run_names):
-            ax.annotate(run, xy=((r + 0.5) * len(backends), 1), xycoords=("data", "axes fraction"),
+        position = 0
+        labels = []
+        # The names of runs with only a few columns are wrapped to fit above them
+        wrapped = any(len(names) <= 2 and ", " in run for run, names in run_backends)
+        for index, (run, names) in enumerate(run_backends):
+            if index:
+                ax.axvline(position, color=SURFACE, linewidth=4)
+            name = run.replace(", ", "\n") if len(names) <= 2 else run
+            ax.annotate(name, xy=(position + len(names) / 2, 1), xycoords=("data", "axes fraction"),
                         xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=8,
                         color=TEXT, annotation_clip=False)
-        ax.set_title(title + (" (change in %)" if relative else " (ms)"), pad=16)
+            position += len(names)
+            labels += names
+        ax.set_xticklabels(labels, rotation=30, ha="right", rotation_mode="anchor")
+        ax.set_title(title + (" (change in %)" if relative else " (ms)"), pad=26 if wrapped else 16)
     else:
         ax.set_title(title + (" (change in %)" if relative else " (ms)"))
+
+    if extra:
+        shares = pd.DataFrame({label: pd.Series(values, dtype=float) for label, values in extra.items()})
+        shares = shares.reindex(index=table.index, columns=list(extra))
+        sns.heatmap(shares, annot=shares.map(lambda v: "" if np.isnan(v) else f"{v * 100:.0f}%"), fmt="",
+                    annot_kws={"fontsize": 6}, linewidths=0.5, linecolor=SURFACE, cmap=SEQUENTIAL, vmin=0, vmax=1,
+                    cbar=False, ax=extra_ax)
+        extra_ax.set_ylabel("")
+        extra_ax.set_xlabel("")
+        extra_ax.set_yticks([])
+        extra_ax.tick_params(axis="x", labelsize=7)
+        extra_ax.set_xticklabels(list(extra), rotation=30, ha="right", rotation_mode="anchor")
+        extra_ax.grid(False)
+        if extra_title:
+            extra_ax.set_title(extra_title, fontsize=8, pad=(26 if wrapped else 16) if multi else None)
     save(fig, plot_name)
 
 
@@ -605,17 +647,29 @@ def runtime_per_group(results, groups):
     return per_group
 
 
-def generate_compile_runtime_heatmap(plot_name, title, compiletimes, runtimes, settings, groups, relative="LLVM",
-                                     prefix=""):
-    """generate_heatmap with the compile time next to the runtime of the same runtime benchmark groups (rows), for each
-    of the settings (names of the runs). compiletimes are the results of the copies of the groups, named prefix + group,
-    runtimes the results of their benchmarks, groups maps each group to its benchmarks. The runtime of a group is the
-    geometric mean of its benchmarks."""
+def compile_runtime_runs(compiletimes, runtimes, settings, groups, prefix=""):
+    """The compile time and runtime of the runtime benchmark groups as (results, runs) for generate_heatmap, a compile
+    time and a runtime run for each of the settings (names of the runs). compiletimes are the results of the copies of
+    the groups, named prefix + group, runtimes the results of their benchmarks, groups maps each group to its
+    benchmarks. The runtime of a group is the geometric mean of its benchmarks."""
     results, runs = [], []
     for setting, compiletime, runtime in zip(settings, compiletimes, runtimes):
-        results.append({variant: {benchmark.removeprefix(prefix): samples for benchmark, samples in series.items()}
-                        for variant, series in compiletime.items()})
+        results.append(strip_prefix(compiletime, prefix))
         runs.append(Wrapper(f"Compile time, {setting}" if setting else "Compile time"))
         results.append(runtime_per_group(runtime, groups))
         runs.append(Wrapper(f"Runtime, {setting}" if setting else "Runtime"))
+    return results, runs
+
+
+def strip_prefix(results, prefix):
+    """{variant: {benchmark: samples}} with the prefix removed from the benchmark names."""
+    return {variant: {benchmark.removeprefix(prefix): samples for benchmark, samples in series.items()}
+            for variant, series in results.items()}
+
+
+def generate_compile_runtime_heatmap(plot_name, title, compiletimes, runtimes, settings, groups, relative="LLVM",
+                                     prefix=""):
+    """generate_heatmap with the compile time next to the runtime of the same runtime benchmark groups (rows), see
+    compile_runtime_runs."""
+    results, runs = compile_runtime_runs(compiletimes, runtimes, settings, groups, prefix)
     generate_heatmap(plot_name, title, results, runs, relative)
