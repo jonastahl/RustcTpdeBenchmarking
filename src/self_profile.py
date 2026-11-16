@@ -236,21 +236,6 @@ def profiles(iteration):
     configuration and are skipped."""
     return [profile for profile in iteration.glob("*.mm_profdata") if not profile.name.startswith("___-")]
 
-def create_flamegraph(benchmark, name):
-    """Render the self-profile of the largest crate of the first iteration of one benchmark and backend (all events) to
-    flamegraphs/<benchmark>-<backend>.svg. Skipped if the raw profiles are not available."""
-    raw = profiles(iterations(benchmark, name)[0])
-    # Only the summaries were copied (see fetch_data.sh)
-    if not raw:
-        return
-    profile = max(raw, key=lambda path: path.stat().st_size)
-    # The flamegraph tool takes the profile path without extension and writes rustc.svg into the cwd
-    run_task(f"Create flamegraph of {benchmark} ({name})",
-             ["flamegraph", profile.stem],
-             cwd=profile.parent)
-    FLAMEGRAPH_DIR.mkdir(exist_ok=True)
-    shutil.move(profile.parent / "rustc.svg", FLAMEGRAPH_DIR / f"{benchmark}-{backend_key(name)}.svg")
-
 def measure_llvm_ir(benchmark):
     """Writes the heap size of the parsed unoptimized LLVM IR per crate into the profile directory of IR_SIZE_LLVM, like
     tpde_ir_bytes before any optimization. This is a separate build, since -Csave-temps would distort the timings."""
@@ -401,6 +386,4 @@ def self_profile_results(benchmark, backends, ir_size=False):
     if sizes:
         print_ir_sizes(sizes)
 
-    for name in rows:
-        create_flamegraph(benchmark, name)
     return {"phases": rows, "ir_size": sizes}
