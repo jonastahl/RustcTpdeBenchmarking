@@ -2,7 +2,8 @@
 profile to the chrome trace chrome-profile-tpde.json (open in https://ui.perfetto.dev). A separate compilation is recorded
 with perf into perf.data (perf report -i perf.data). The samples of its compile thread are written to perf-tpde.txt (open in
 https://www.speedscope.app or https://profiler.firefox.com) and drawn as the flamegraph flamegraph-tpde.svg and the flame
-chart (time ordered) flamechart-tpde.svg. Both compile without incremental compilation."""
+chart (time ordered) flamechart-tpde.svg, the part below codegen_crate also as flamegraph-backend.svg and
+flamechart-backend.svg. Both compile without incremental compilation."""
 import re
 import shlex
 import shutil
@@ -18,6 +19,10 @@ PERF_FILE = Path(__file__).resolve().parent / "perf.data"
 PERF_SCRIPT_FILE = Path(__file__).resolve().parent / "perf-tpde.txt"
 FLAMEGRAPH_FILE = Path(__file__).resolve().parent / "flamegraph-tpde.svg"
 FLAMECHART_FILE = Path(__file__).resolve().parent / "flamechart-tpde.svg"
+BACKEND_FLAMEGRAPH_FILE = Path(__file__).resolve().parent / "flamegraph-backend.svg"
+BACKEND_FLAMECHART_FILE = Path(__file__).resolve().parent / "flamechart-backend.svg"
+# Keeps only the stacks below codegen_crate, which becomes their root
+BACKEND_ONLY = r"grep 'codegen_crate::<' | sed 's/^.*;\(rustc_codegen_ssa::base::codegen_crate::<\)/\1/'"
 # Folds the perf script samples into one line per sample, keeping their order (inferno-collapse-perf merges and sorts them)
 FOLD_SAMPLES = (r'''NF==0{if(s!="")print s" "w; s=""; next} /^[^ \t]/{w=$(NF-1); s=""; next} '''
                 r'''{sub(/^[ \t]*[0-9a-f]+ /,""); sub(/\+0x[0-9a-f]+ \(.*$/,""); sub(/ \(.*$/,""); gsub(/;/,":"); '''
@@ -51,6 +56,12 @@ def main():
     run_task("Create flame chart",
              ["sh", "-c", f"awk {shlex.quote(FOLD_SAMPLES)} '{PERF_SCRIPT_FILE}' | grep '^clone3;start_thread;' | tac "
                           f"| inferno-flamegraph --flamechart > '{FLAMECHART_FILE}'"])
+    run_task("Create backend flamegraph",
+             ["sh", "-c", f"inferno-collapse-perf '{PERF_SCRIPT_FILE}' | {BACKEND_ONLY} "
+                          f"| inferno-flamegraph > '{BACKEND_FLAMEGRAPH_FILE}'"])
+    run_task("Create backend flame chart",
+             ["sh", "-c", f"awk {shlex.quote(FOLD_SAMPLES)} '{PERF_SCRIPT_FILE}' | {BACKEND_ONLY} | tac "
+                          f"| inferno-flamegraph --flamechart > '{BACKEND_FLAMECHART_FILE}'"])
     run_task(f"Self profile {BENCHMARK} with TPDE",
              [*cargo, "--target-dir", prof_dir / "target", "--", f"-Zself-profile={prof_dir}"],
              cwd=BENCH_ROOT / BENCHMARK)
