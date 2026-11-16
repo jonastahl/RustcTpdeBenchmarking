@@ -27,3 +27,7 @@ def evaluate(results):
     generate_compile_runtime_heatmap("compiletime_vs_runtime_heatmap",
                                      "Compile time and runtime relative to LLVM -O0",
                                      compiletimes, runtimes, settings, runtime_benchmark_groups(), prefix=RT_PREFIX)
+    for setting, compiletime, runtime in zip(settings, compiletimes, runtimes):
+        generate_compile_runtime_heatmap(f"compiletime_vs_runtime_cgu{setting.split()[0]}_heatmap",
+                                         f"Compile time and runtime relative to LLVM -O0, {setting}",
+                                         [compiletime], [runtime], [""], runtime_benchmark_groups(), prefix=RT_PREFIX)
