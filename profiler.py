@@ -45,10 +45,11 @@ def main():
     run_task("Export the samples of the compile thread",
              ["sh", "-c", f"perf script -i '{PERF_FILE}' --tid {tid} | rustfilt > '{PERF_SCRIPT_FILE}'"])
     run_task("Create flamegraph",
-             ["sh", "-c", f"inferno-collapse-perf '{PERF_SCRIPT_FILE}' | inferno-flamegraph > '{FLAMEGRAPH_FILE}'"])
+             ["sh", "-c", f"inferno-collapse-perf '{PERF_SCRIPT_FILE}' | grep '^rustc;clone3;start_thread;' "
+                          f"| inferno-flamegraph > '{FLAMEGRAPH_FILE}'"])
     # The flame chart draws the lines in reverse order
     run_task("Create flame chart",
-             ["sh", "-c", f"awk {shlex.quote(FOLD_SAMPLES)} '{PERF_SCRIPT_FILE}' | tac "
+             ["sh", "-c", f"awk {shlex.quote(FOLD_SAMPLES)} '{PERF_SCRIPT_FILE}' | grep '^clone3;start_thread;' | tac "
                           f"| inferno-flamegraph --flamechart > '{FLAMECHART_FILE}'"])
     run_task(f"Self profile {BENCHMARK} with TPDE",
              [*cargo, "--target-dir", prof_dir / "target", "--", f"-Zself-profile={prof_dir}"],
