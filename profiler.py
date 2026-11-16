@@ -1,8 +1,10 @@
 """Self-profiles the cranelift-codegen crate with the TPDE backend of the stage 1 rustc in deps/rust and converts the
 profile to the chrome trace chrome-profile-tpde.json (open in https://ui.perfetto.dev). A separate compilation is recorded
-with perf into perf.data (perf report -i perf.data), its compile thread is converted to the flamegraph flamegraph-tpde.svg.
-Both compile without incremental compilation."""
+with perf into perf.data (perf report -i perf.data). The samples of its compile thread are written to perf-tpde.txt (open in
+https://www.speedscope.app or https://profiler.firefox.com) and drawn as the flamegraph flamegraph-tpde.svg and the flame
+chart (time ordered) flamechart-tpde.svg. Both compile without incremental compilation."""
 import re
+import shlex
 import shutil
 from pathlib import Path
 
@@ -13,7 +15,13 @@ from src.setup import RUST_STAGE1_RUSTC, build_rustc_stage1, update_modules
 BENCHMARK = "cranelift-codegen-0.119.0"
 OUT_FILE = Path(__file__).resolve().parent / "chrome-profile-tpde.json"
 PERF_FILE = Path(__file__).resolve().parent / "perf.data"
+PERF_SCRIPT_FILE = Path(__file__).resolve().parent / "perf-tpde.txt"
 FLAMEGRAPH_FILE = Path(__file__).resolve().parent / "flamegraph-tpde.svg"
+FLAMECHART_FILE = Path(__file__).resolve().parent / "flamechart-tpde.svg"
+# Folds the perf script samples into one line per sample, keeping their order (inferno-collapse-perf merges and sorts them)
+FOLD_SAMPLES = (r'''NF==0{if(s!="")print s" "w; s=""; next} /^[^ \t]/{w=$(NF-1); s=""; next} '''
+                r'''{sub(/^[ \t]*[0-9a-f]+ /,""); sub(/\+0x[0-9a-f]+ \(.*$/,""); sub(/ \(.*$/,""); gsub(/;/,":"); '''
+                r'''s=(s==""?$0:$0";"s)} END{if(s!="")print s" "w}''')
 
 
 def main():
@@ -34,8 +42,14 @@ def main():
     threads = run_task("Find the compile thread", ["perf", "report", "-i", PERF_FILE, "--sort", "pid", "--stdio",
                                                    "--no-children", "-g", "none"])
     tid = re.search(r"(\d+):rustc", threads).group(1)
-    run_task("Create flamegraph", ["sh", "-c", f"perf script -i '{PERF_FILE}' --tid {tid} | rustfilt | inferno-collapse-perf "
-                                               f"| inferno-flamegraph > '{FLAMEGRAPH_FILE}'"])
+    run_task("Export the samples of the compile thread",
+             ["sh", "-c", f"perf script -i '{PERF_FILE}' --tid {tid} | rustfilt > '{PERF_SCRIPT_FILE}'"])
+    run_task("Create flamegraph",
+             ["sh", "-c", f"inferno-collapse-perf '{PERF_SCRIPT_FILE}' | inferno-flamegraph > '{FLAMEGRAPH_FILE}'"])
+    # The flame chart draws the lines in reverse order
+    run_task("Create flame chart",
+             ["sh", "-c", f"awk {shlex.quote(FOLD_SAMPLES)} '{PERF_SCRIPT_FILE}' | tac "
+                          f"| inferno-flamegraph --flamechart > '{FLAMECHART_FILE}'"])
     run_task(f"Self profile {BENCHMARK} with TPDE",
              [*cargo, "--target-dir", prof_dir / "target", "--", f"-Zself-profile={prof_dir}"],
              cwd=BENCH_ROOT / BENCHMARK)
