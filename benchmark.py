@@ -17,7 +17,8 @@ from src.benchmarks import (check_results, compiletime_db, compiletime_results, 
                             run_check_benchmark, run_compiletime_benchmark, run_runtime_benchmark, runtime_db,
                             runtime_results, runtime_suffix, variant_config)
 from src.helper import TMP_DIR
-from src.runs import CheckTime, CompileTime, Runtime, SelfProfile
+from src.runs import BackendTime, CheckTime, CompileTime, Runtime, SelfProfile
+from src.sections import section_results
 from src.self_profile import run_self_profile, self_profile_results
 from src.setup import run_setup
 
@@ -43,6 +44,7 @@ class Jobs:
         # benchmark -> {"backends": [...], "ir_size": bool}
         self.self_profile = {}
         for run in runs:
+            # A BackendTime is recorded during the CompileTime run with its settings
             if isinstance(run, CompileTime):
                 add_new(self.compiletime.setdefault(run.key, []), run.variants)
             elif isinstance(run, CheckTime):
@@ -81,6 +83,10 @@ class Jobs:
                 key: compiletime_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key), variants=variants)
                 for key, variants in self.compiletime.items()
             },
+            "backend": {
+                key: section_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key), variants=variants)
+                for key, variants in self.compiletime.items()
+            },
             "check": {key: check_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key)) for key in self.check},
             "runtime": {cgu: runtime_results(db=runtime_db(cgu), suffix=runtime_suffix(cgu), variants=variants)
                         for cgu, variants in self.runtime.items()},
@@ -94,7 +100,7 @@ class Jobs:
 def run_results(run, results):
     """The part of the merged results that belongs to one run of a configuration."""
     if isinstance(run, CompileTime):
-        data = results["compiletime"][run.key]
+        data = results["backend" if isinstance(run, BackendTime) else "compiletime"][run.key]
         return {name: data[name] for name in run.variants if name in data}
     if isinstance(run, CheckTime):
         return results["check"][run.key]

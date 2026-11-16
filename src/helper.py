@@ -16,7 +16,8 @@ TMP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 os.makedirs(TMP_DIR, exist_ok=True)
 env["TMPDIR"] = TMP_DIR
 
-def run_task(description, command, cwd=".", print_result=False, allow_failure=False, extra_env=None):
+def run_task(description, command, cwd=".", print_result=False, allow_failure=False, extra_env=None, on_line=None):
+    """on_line is called with every line of the output as soon as it is printed."""
     # ANSI escape codes for terminal colors and actions
     YELLOW = '\033[93m'
     GREEN = '\033[92m'
@@ -45,6 +46,8 @@ def run_task(description, command, cwd=".", print_result=False, allow_failure=Fa
     # 3. Read output live and overwrite the end of the line
     for line in iter(process.stdout.readline, ''):
         full_output.append(line)
+        if on_line:
+            on_line(line)
 
         clean_line = line.strip().replace('\t', ' ')
         columns, _ = shutil.get_terminal_size()

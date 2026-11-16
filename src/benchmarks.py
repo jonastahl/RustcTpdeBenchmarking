@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from src.helper import run_task, print_table
+from src.sections import CARGO_CONFIGS as SECTION_CONFIGS, Tracker, remove_sections, store_sections
 
 # The variants of the compile time and runtime benchmarks by name: the rustc wrapper script in variants/ and the cargo
 # profile settings of the variant. The names are the same as the ones of the self-profile backends
@@ -93,7 +94,10 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                               suite="compile"):
     """include: only run these benchmarks, purge: replace previous results of the same compiler in db,
     threads: number of threads of the parallel frontend (-Zthreads), profile: the cargo profile of rustc-perf,
-    suite: "compile" for the compile-time benchmarks, "runtime" for the copies of the runtime benchmarks (RT_PREFIX)"""
+    suite: "compile" for the compile-time benchmarks, "runtime" for the copies of the runtime benchmarks (RT_PREFIX)
+
+    The Debug profile also records the compilation sections of rustc (src.sections) next to db."""
+    sections = profile == "Debug"
     if include:
         selection = ["--exact-match", ",".join(include)]
     elif suite == "runtime":
@@ -107,8 +111,11 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "rm", "-f", db,
                  ],
                  cwd="deps/rustc-perf")
+        remove_sections(db)
     pin = ["taskset", "--cpu-list", f"0-{cores - 1}"] if cores else []
     for (compiler, name, settings) in config:
+        tracker = Tracker()
+        tracker.start()
         run_task(f"Running benchmark with compiler {name}{suffix}",
                  [
                      *pin,
@@ -124,10 +131,15 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
                      "--id", name,
                      *[arg for setting in settings for arg in ("--cargo-config", f"profile.dev.{setting}")],
                      *[arg for setting in cargo_configs for arg in ("--cargo-config", setting)],
+                     *[arg for setting in (SECTION_CONFIGS if sections else []) for arg in ("--cargo-config", setting)],
                      compiler
                  ],
                  cwd="deps/rustc-perf",
-                 allow_failure=True)
+                 allow_failure=True,
+                 on_line=tracker.on_line)
+        results = tracker.finish()
+        if sections and results:
+            store_sections(db, name, results)
 
 def read_wall_time(db, profile):
     """{compiler: {benchmark: samples}} in seconds of one profile (debug or check)."""

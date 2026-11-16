@@ -60,6 +60,18 @@ def settings_name(cgu, cores, threads):
 
 
 @dataclass(frozen=True)
+class BackendTime(CompileTime):
+    """Wall-time of the backend in the compile-time benchmarks: the codegen section rustc reports itself (from the start
+    of codegen_crate to the end of finish_ongoing_codegen, without linking), see src.sections. It is recorded during
+    the CompileTime run with the same settings, from the same compilations of the benchmark crate.
+
+    Results: {variant: {benchmark: [samples]}}"""
+
+    def name(self):
+        return f"Backendtime[cores={self.cores} cgu={self.cgu} threads={self.threads} suite={self.suite}]"
+
+
+@dataclass(frozen=True)
 class CheckTime:
     """Compile time (wall-time) of the compile-time benchmarks of rustc-perf with the Check profile, which runs the
     frontend without codegen. It doesn't depend on the backend, so it is only measured with LLVM. Together with the
