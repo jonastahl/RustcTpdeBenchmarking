@@ -74,7 +74,8 @@ def build_custom_rustc(rebuild):
 def build_rustc_stage1():
     # Unoptimized (no PGO, BOLT or LTO) so that it quickly rebuilds after changes to the compiler
     run_task("Building stage 1 rustc",
-             ["./x", "build", "--stage", "1", "library", "--set", "rust.lto=off", "--set", "rust.codegen-units=16"],
+             ["./x", "build", "--stage", "1", "library", "--set", "rust.lto=off", "--set", "rust.codegen-units=16",
+              "--set", "rust.frame-pointers=true", "--set", "rust.debuginfo-level-rustc=line-tables-only"],
              cwd=RUST_DIR)
 
 

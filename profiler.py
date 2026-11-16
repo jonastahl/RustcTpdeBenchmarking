@@ -1,5 +1,6 @@
 """Self-profiles the cranelift-codegen crate with the TPDE backend of the stage 1 rustc in deps/rust and converts the
-profile to the chrome trace chrome-profile-tpde.json (open in https://ui.perfetto.dev)."""
+profile to the chrome trace chrome-profile-tpde.json (open in https://ui.perfetto.dev). The compilation is also recorded
+with perf into perf.data (perf report -i perf.data)."""
 import shutil
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from src.setup import RUST_STAGE1_RUSTC, build_rustc_stage1, update_modules
 
 BENCHMARK = "cranelift-codegen-0.119.0"
 OUT_FILE = Path(__file__).resolve().parent / "chrome-profile-tpde.json"
+PERF_FILE = Path(__file__).resolve().parent / "perf.data"
 
 
 def main():
@@ -19,7 +21,8 @@ def main():
     prof_dir = Path(TMP_DIR) / BENCHMARK
     shutil.rmtree(prof_dir, ignore_errors=True)
     run_task(f"Self profile {BENCHMARK} with TPDE",
-             ["env", f"RUSTC={RUST_STAGE1_RUSTC}", "RUSTFLAGS=-Znext-solver=coherence -Zcodegen-backend=tpde",
+             ["perf", "record", "--call-graph", "fp", "-o", PERF_FILE, "--",
+              "env", f"RUSTC={RUST_STAGE1_RUSTC}", "RUSTFLAGS=-Znext-solver=coherence -Zcodegen-backend=tpde",
               "cargo", TOOLCHAIN, "rustc", "--target", TARGET, "--target-dir", prof_dir / "target",
               "--", f"-Zself-profile={prof_dir}"],
              cwd=BENCH_ROOT / BENCHMARK)
