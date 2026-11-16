@@ -5,14 +5,13 @@ from pathlib import Path
 
 import matplotlib
 
-from src.runs import CompileTime, Runtime
-
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.textpath import TextPath
 from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator, NullLocator
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -99,121 +98,6 @@ def medians_of_backend(config):
     return {key: median_of_series(config) for (key, config) in config.items()}
 
 
-def merge_dicts(a, b):
-    return {k: (a.get(k), b.get(k)) for k in a.keys() | b.keys()}
-
-
-def generate_box_plot(plot_name, title, results, runs, VARIANTS, relative="LLVM", single_test=False):
-    # Reduce everything to median
-    if not single_test:
-        results = [medians_of_backend(config) for config in results]
-    else:
-        results = [
-            {
-                backend: {
-                    str(i): value * 1000
-                    for (i, value) in enumerate(values)
-                }
-                for (backend, values) in config.items()
-            }
-            for config in results
-        ]
-
-    fig, ax = plt.subplots()
-    plot_data = []
-
-    # Compute data and print
-    for run, result in zip(runs, results):
-        print(f"{run.name()}:")
-
-        if relative:
-            llvm = result[relative]
-            print(f"LLVM: {statistics.geometric_mean(llvm.values())}")
-
-            for name, series in result.items():
-                if name == relative:
-                    continue
-
-                print(f"{name}")
-
-                merge = merge_dicts(llvm, series)
-                existing = {key: (a, b) for (key, (a, b)) in merge.items() if a is not None and b is not None}
-
-                missing = sum(1 for a, b in merge.values() if b is None)
-                if missing > 0:
-                    print(f"  missing: {missing}")
-
-                ratio = [b / a * 100 for a, b in existing.values()]
-                min_val = min(ratio) - 100
-                max_val = max(ratio) - 100
-                mean = statistics.geometric_mean(ratio) - 100
-                geomstdev = math.exp(statistics.stdev([math.log(r) for r in ratio]))
-                print(
-                    f"  relative: mean: {mean:.2f}%, geom-stdev: {geomstdev:.2f}, min: {min_val:.2f}%, max: {max_val:.2f}%")
-
-                for r in ratio:
-                    plot_data.append({
-                        "Run": run.short_name(),
-                        "Backend": name,
-                        "Relative Change (%)": r - 100
-                    })
-        else:
-            for name, series in result.items():
-                print(f"{name}")
-
-                # absolute values
-                mean = statistics.geometric_mean(series.values())
-                print(
-                    f"  absolute: mean: {mean:.2f}ms")
-
-                for v in series.values():
-                    plot_data.append({
-                        "Run": run.short_name(),
-                        "Backend": name,
-                        "Time (ms)": v
-                    })
-
-    df = pd.DataFrame(plot_data)
-    backends = ordered(set(df["Backend"]))
-    by_run = len(runs) > 1
-    sns.boxplot(
-        data=df,
-        x="Run" if by_run else "Backend",
-        order=[run.short_name() for run in runs] if by_run else backends,
-        y="Relative Change (%)" if relative else "Time (ms)",
-        palette={v: variant_color(v) for v in VARIANTS if not relative or v != "LLVM"},
-        hue="Backend",
-        hue_order=backends,
-        ax=ax,
-        gap=0.1,
-        saturation=1,
-        linewidth=0.8,
-        boxprops={"edgecolor": TEXT_SECONDARY},
-        medianprops={"color": TEXT_SECONDARY},
-        whiskerprops={"color": TEXT_SECONDARY},
-        capprops={"color": TEXT_SECONDARY},
-        flierprops={"marker": "o", "markersize": 3, "markerfacecolor": "none", "markeredgecolor": NEUTRAL},
-        showmeans=True,
-        meanprops={"marker": "D", "markersize": 4, "markerfacecolor": SURFACE, "markeredgecolor": TEXT},
-    )
-
-    ax.tick_params(axis="x", labelrotation=20)
-    ax.xaxis.label.set_visible(False)
-    for label in ax.get_xticklabels():
-        label.set_horizontalalignment("right")
-        label.set_rotation_mode("anchor")
-
-    if relative:
-        ax.set_ylabel(f"Relative to {relative} run")
-    elif isinstance(runs[0], Runtime):
-        ax.set_ylabel("Compiletime (ms)")
-    else:
-        ax.set_ylabel("Compiletime (ms)")
-
-    ax.axhline(0, color=TEXT_SECONDARY, linestyle='--', linewidth=1, zorder=1, label='LLVM O0 Baseline')
-    plt.title(title)
-    save(fig, plot_name)
-
 class Wrapper:
     def __init__(self, name):
         self._name = name
@@ -224,22 +108,22 @@ class Wrapper:
     def short_name(self):
         return self._name
 
-def generate_box_plot_self_perf(plot_name, title, results, runs, VARIANTS, phase, relative="LLVM"):
-    new_results = []
-    for test, data in results.items():
-        new_data = defaultdict()
-        for backend, values in data['phases'].items():
-            new_data[backend] = values[phase]
-        new_results.append(dict(new_data))
-
-    generate_box_plot(plot_name, title, new_results, [Wrapper(name) for name in results.keys()], VARIANTS,
-                      relative=relative,
-                      single_test=True)
-
 DIVERGING = LinearSegmentedColormap.from_list("diverging", ["#2a78d6", "#f0efec", "#e34948"])
 SEQUENTIAL = LinearSegmentedColormap.from_list("sequential", ["#f0efec", "#2a78d6", "#0d2f5c"])
 
 BOOTSTRAP_SAMPLES = 10000
+
+# Heatmap geometry in inches: the cells fit a sign and three digits (or a share like 100%)
+HEATMAP_CELL_PADDING = 0.08
+HEATMAP_ROW_HEIGHT = 0.2
+HEATMAP_EXTRA_GAP = 0.08
+HEATMAP_CBAR_GAP = 0.12
+HEATMAP_CBAR_WIDTH = 0.12
+
+
+def text_width(text, fontsize):
+    """Width of the text in inches with the default font."""
+    return TextPath((0, 0), text, size=fontsize).get_extents().width / 72
 
 
 def benchmark_frame(results, runs, relative="LLVM"):
@@ -483,17 +367,23 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
                               "shrink": 0.5 if len(table) > 15 else 1,
                               "label": "Time (ms)"}}
 
-    height = 1.2 + 0.19 * len(table)
+    # Fixed cell sizes, the labels around the cells extend the figure when it is saved (bbox_inches="tight")
+    cell = max(text_width("+888", 6), text_width("100%", 6)) + HEATMAP_CELL_PADDING
+    heat_width, height = cell * len(columns), HEATMAP_ROW_HEIGHT * len(table)
+    extra_width = cell * len(extra) + HEATMAP_EXTRA_GAP if extra else 0
+    width = heat_width + extra_width + HEATMAP_CBAR_GAP + HEATMAP_CBAR_WIDTH
+    fig = plt.figure(figsize=(width, height))
+    ax = fig.add_axes((0, 0, heat_width / width, 1))
     if extra:
-        fig, (ax, extra_ax, cbar_ax) = plt.subplots(
-            1, 3, figsize=(2.2 + 0.62 * (len(columns) + len(extra)), height),
-            gridspec_kw={"width_ratios": [len(columns), len(extra), 0.3], "wspace": 0.04 * 20 / (len(columns) + 5)})
-        style["cbar_ax"] = cbar_ax
-        del style["cbar_kws"]["shrink"]
-    else:
-        fig, ax = plt.subplots(figsize=(1.6 + 0.62 * len(columns), height))
+        extra_ax = fig.add_axes(((heat_width + HEATMAP_EXTRA_GAP) / width, 0, (extra_width - HEATMAP_EXTRA_GAP) / width, 1))
+    cbar_height = 0.5 if len(table) > 15 and not extra else 1
+    style["cbar_ax"] = fig.add_axes((1 - HEATMAP_CBAR_WIDTH / width, (1 - cbar_height) / 2, HEATMAP_CBAR_WIDTH / width,
+                                     cbar_height))
+    del style["cbar_kws"]["shrink"]
     sns.heatmap(table, annot=annot, fmt="", annot_kws={"fontsize": 6}, linewidths=0.5, linecolor=SURFACE, ax=ax,
                 **style)
+    style["cbar_ax"].tick_params(labelsize=7)
+    style["cbar_ax"].yaxis.label.set_fontsize(8)
     ax.set_ylabel("")
     ax.set_xlabel("")
     ax.tick_params(axis="y", labelsize=7)
@@ -503,12 +393,12 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
     if multi:
         position = 0
         labels = []
-        # The names of runs with only a few columns are wrapped to fit above them
-        wrapped = any(len(names) <= 2 and ", " in run for run, names in run_backends)
+        # If a run name is wider than its columns, all are wrapped to fit above them
+        wrapped = any(text_width(run, 8) > cell * len(names) - 0.15 and ", " in run for run, names in run_backends)
         for index, (run, names) in enumerate(run_backends):
             if index:
                 ax.axvline(position, color=SURFACE, linewidth=4)
-            name = run.replace(", ", "\n") if len(names) <= 2 else run
+            name = run.replace(", ", "\n") if wrapped else run
             ax.annotate(name, xy=(position + len(names) / 2, 1), xycoords=("data", "axes fraction"),
                         xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=8,
                         color=TEXT, annotation_clip=False)
