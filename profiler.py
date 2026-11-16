@@ -1,6 +1,8 @@
 """Self-profiles the cranelift-codegen crate with the TPDE backend of the stage 1 rustc in deps/rust and converts the
-profile to the chrome trace chrome-profile-tpde.json (open in https://ui.perfetto.dev). The compilation is also recorded
-with perf into perf.data (perf report -i perf.data)."""
+profile to the chrome trace chrome-profile-tpde.json (open in https://ui.perfetto.dev). A separate compilation is recorded
+with perf into perf.data (perf report -i perf.data), its compile thread is converted to the flamegraph flamegraph-tpde.svg.
+Both compile without incremental compilation."""
+import re
 import shutil
 from pathlib import Path
 
@@ -11,20 +13,31 @@ from src.setup import RUST_STAGE1_RUSTC, build_rustc_stage1, update_modules
 BENCHMARK = "cranelift-codegen-0.119.0"
 OUT_FILE = Path(__file__).resolve().parent / "chrome-profile-tpde.json"
 PERF_FILE = Path(__file__).resolve().parent / "perf.data"
+FLAMEGRAPH_FILE = Path(__file__).resolve().parent / "flamegraph-tpde.svg"
 
 
 def main():
     update_modules()
     build_rustc_stage1()
     run_task("Install crox", ["cargo", "install", "--git", "https://github.com/rust-lang/measureme", "crox"])
+    run_task("Install inferno and rustfilt", ["cargo", "install", "inferno", "rustfilt"])
 
     prof_dir = Path(TMP_DIR) / BENCHMARK
     shutil.rmtree(prof_dir, ignore_errors=True)
-    run_task(f"Self profile {BENCHMARK} with TPDE",
+    cargo = ["env", f"RUSTC={RUST_STAGE1_RUSTC}", "RUSTFLAGS=-Znext-solver=coherence -Zcodegen-backend=tpde",
+             "CARGO_INCREMENTAL=0", "cargo", TOOLCHAIN, "rustc", "--target", TARGET]
+    run_task(f"Perf profile {BENCHMARK} with TPDE",
              ["perf", "record", "--call-graph", "fp", "-o", PERF_FILE, "--",
-              "env", f"RUSTC={RUST_STAGE1_RUSTC}", "RUSTFLAGS=-Znext-solver=coherence -Zcodegen-backend=tpde",
-              "cargo", TOOLCHAIN, "rustc", "--target", TARGET, "--target-dir", prof_dir / "target",
-              "--", f"-Zself-profile={prof_dir}"],
+              *cargo, "--target-dir", prof_dir / "target-perf"],
+             cwd=BENCH_ROOT / BENCHMARK)
+    # The compile thread of the benchmark crate is the thread with the most samples (perf's pid sort is per thread)
+    threads = run_task("Find the compile thread", ["perf", "report", "-i", PERF_FILE, "--sort", "pid", "--stdio",
+                                                   "--no-children", "-g", "none"])
+    tid = re.search(r"(\d+):rustc", threads).group(1)
+    run_task("Create flamegraph", ["sh", "-c", f"perf script -i '{PERF_FILE}' --tid {tid} | rustfilt | inferno-collapse-perf "
+                                               f"| inferno-flamegraph > '{FLAMEGRAPH_FILE}'"])
+    run_task(f"Self profile {BENCHMARK} with TPDE",
+             [*cargo, "--target-dir", prof_dir / "target", "--", f"-Zself-profile={prof_dir}"],
              cwd=BENCH_ROOT / BENCHMARK)
 
     profile, = profiles(prof_dir)
