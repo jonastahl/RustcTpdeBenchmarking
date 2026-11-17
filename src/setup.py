@@ -3,7 +3,7 @@ import json
 import os
 import shutil
 
-from src.benchmarks import RT_PREFIX, RUNTIME_BENCH_ROOT, runtime_benchmark_groups
+from src.benchmarks import COMPILE_BENCH_ROOT, RT_PREFIX, RUNTIME_BENCH_ROOT, runtime_benchmark_groups
 from src.helper import run_task
 
 HOST = "x86_64-unknown-linux-gnu"
@@ -98,7 +98,6 @@ def build_tpde_lib():
              ["cargo", "build", "--release"],
              "deps/RustcTpde")
 
-COMPILE_BENCH_ROOT = RUNTIME_BENCH_ROOT.parent / "compile-benchmarks"
 # The self-profile results and target dirs in a benchmark (src.self_profile), kept when copying
 SELF_PROFILE_DIRS = ("prof-", "target-prof-")
 

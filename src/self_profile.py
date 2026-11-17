@@ -236,6 +236,18 @@ def profiles(iteration):
     configuration and are skipped."""
     return [profile for profile in iteration.glob("*.mm_profdata") if not profile.name.startswith("___-")]
 
+def cargo_build(benchmark, target_dir):
+    """The cargo command that builds the benchmark like the collector of rustc-perf does: with the cargo_opts of its
+    perf-config.json, and its cargo_rustc_opts only for the benchmark crate itself (not its dependencies)."""
+    file = BENCH_ROOT / benchmark / "perf-config.json"
+    config = json.loads(file.read_text()) if file.exists() else {}
+    rustc_opts = config.get("cargo_rustc_opts", "").split()
+    return ["cargo", TOOLCHAIN, "rustc",
+            "--target", TARGET,
+            "--target-dir", target_dir.name,
+            *config.get("cargo_opts", "").split(),
+            *(["--", *rustc_opts] if rustc_opts else [])]
+
 def measure_llvm_ir(benchmark):
     """Writes the heap size of the parsed unoptimized LLVM IR per crate into the profile directory of IR_SIZE_LLVM, like
     tpde_ir_bytes before any optimization. This is a separate build, since -Csave-temps would distort the timings."""
@@ -250,9 +262,7 @@ def measure_llvm_ir(benchmark):
     output = run_task(f"Build {benchmark} with LLVM IR files",
                       [
                           "env", f"RUSTFLAGS=-Znext-solver=coherence {BACKENDS[IR_SIZE_LLVM]['flag']} -Csave-temps",
-                          "cargo", TOOLCHAIN, "build",
-                          "--target", TARGET,
-                          "--target-dir", target_dir.name,
+                          *cargo_build(benchmark, target_dir),
                       ],
                       cwd=bench_dir,
                       allow_failure=True)
@@ -311,9 +321,7 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
                          *([f"RUSTC={backend['rustc']}"] if "rustc" in backend else []),
                          *([f"CARGO_PROFILE_DEV_OPT_LEVEL={backend['opt_level']}"] if "opt_level" in backend else []),
                          *[f"{variable}={value}" for variable, value in backend.get("env", {}).items()],
-                         "cargo", TOOLCHAIN, "build",
-                         "--target", TARGET,
-                         "--target-dir", target_dir.name,
+                         *cargo_build(benchmark, target_dir),
                      ],
                      cwd=bench_dir,
                      allow_failure=True)

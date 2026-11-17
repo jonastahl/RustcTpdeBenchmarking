@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import re
 from pathlib import Path
 
@@ -39,10 +40,27 @@ EX_RUNTIME_TESTS = ["css"]
 RT_PREFIX = "rt-"
 SUITES = ["compile", "runtime"]
 RUNTIME_BENCH_ROOT = Path(__file__).resolve().parent.parent / "deps/rustc-perf/collector/runtime-benchmarks"
+COMPILE_BENCH_ROOT = RUNTIME_BENCH_ROOT.parent / "compile-benchmarks"
 
 COMPILE_TESTS = ["diesel-2.2.10-new-solver", "nalgebra-0.33.0-new-solver", "ripgrep-14.1.1", "tokio-1.53.1"]
 
 COMPILE_ITERATIONS = 5
+
+
+def compile_benchmarks():
+    """The benchmarks of the "compile" suite, the same selection as run_compiletime_benchmark: all compile-time
+    benchmarks except EX_COMPILE_TESTS and the copies of the runtime benchmarks (both matched as name prefixes, like the
+    --exclude of the collector), and except the ones whose perf-config.json excludes the Debug profile."""
+    def included(bench_dir):
+        if not (bench_dir / "Cargo.toml").exists():
+            return False
+        if bench_dir.name.startswith((*EX_COMPILE_TESTS, RT_PREFIX)):
+            return False
+        config = bench_dir / "perf-config.json"
+        return not config.exists() or "Debug" not in json.loads(config.read_text()).get("excluded_profiles", [])
+
+    return sorted(bench_dir.name for bench_dir in COMPILE_BENCH_ROOT.iterdir() if included(bench_dir))
+
 RUNTIME_ITERATIONS = 5
 
 DEV_PROFILE = [
