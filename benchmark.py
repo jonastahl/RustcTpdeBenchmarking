@@ -54,17 +54,30 @@ class Jobs:
             else:
                 raise TypeError(f"Unknown run: {run!r}")
 
-    def run(self, rerun):
+    def run(self, rerun, rerun_variant=lambda name: False):
+        """rerun: delete all previous results, rerun_variant: tells for a variant / self-profile backend name whether to
+        replace only its previous results."""
         for key, variants in self.compiletime.items():
             cgu, cores, threads, suite = key
             settings = {"db": compiletime_db(*key), "suffix": compiletime_suffix(*key),
                         "cargo_configs": [f"profile.dev.codegen-units={cgu}"] if cgu else [],
                         "cores": cores, "threads": threads, "suite": suite}
-            run_compiletime_benchmark(variant_config(variants), rerun=rerun, **settings)
+            stale = [] if rerun else [name for name in variants if rerun_variant(name)]
+            kept = [name for name in variants if name not in stale]
+            if kept:
+                run_compiletime_benchmark(variant_config(kept), rerun=rerun, **settings)
+            if stale:
+                run_compiletime_benchmark(variant_config(stale), purge=True, **settings)
         for cgu, variants in self.runtime.items():
-            run_runtime_benchmark(variant_config(variants), db=runtime_db(cgu), cgu=cgu, suffix=runtime_suffix(cgu))
+            settings = {"db": runtime_db(cgu), "cgu": cgu, "suffix": runtime_suffix(cgu)}
+            stale = [name for name in variants if rerun_variant(name)]
+            kept = [name for name in variants if name not in stale]
+            if kept:
+                run_runtime_benchmark(variant_config(kept), **settings)
+            if stale:
+                run_runtime_benchmark(variant_config(stale), purge=True, **settings)
         for benchmark, job in self.self_profile.items():
-            run_self_profile(benchmark, job["backends"], ir_size=job["ir_size"], rerun=rerun)
+            run_self_profile(benchmark, job["backends"], ir_size=job["ir_size"], rerun=rerun or rerun_variant)
 
     def results(self):
         """Prints the results of all jobs and returns them, in the same structure as the jobs."""
@@ -115,6 +128,9 @@ def main():
                         help=f"Only run these configurations (default: all of {', '.join(available_configurations())})")
     parser.add_argument("--rerun", action="store_true",
                         help="Delete the existing results of the selected runs and rerun them")
+    parser.add_argument("--rerun-variants", nargs="+", default=[], metavar="pattern",
+                        help="Replace the existing results of the variants and self-profile backends whose name "
+                             "contains one of these patterns (e.g. inline), keep the others")
     parser.add_argument("--results", action="store_true",
                         help="Skip setup and benchmarking, only evaluate the results of previous runs")
     parser.add_argument("--rebuild", action="store_true",
@@ -133,7 +149,7 @@ def main():
         if not args.results:
             # Download and compile all dependencies
             run_setup(rebuild=args.rebuild)
-            jobs.run(args.rerun)
+            jobs.run(args.rerun, lambda name: any(pattern in name for pattern in args.rerun_variants))
 
         results = jobs.results()
         for name, configuration in configurations.items():

@@ -288,7 +288,8 @@ def measure_llvm_ir(benchmark):
 
 def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
     """Self-profile the benchmark (all crates) with each of the given backends ITERATIONS times, each iteration into
-    prof-<backend>/<iteration>. Iterations completed by a previous run are kept unless rerun is set. Backends that fail
+    prof-<backend>/<iteration>. Iterations completed by a previous run are kept unless rerun is set: True for all
+    backends, or a function that tells for a backend name whether to rerun it. Backends that fail
     to compile the benchmark are skipped for it. With ir_size, the size of the unoptimized LLVM IR is measured as well."""
     bench_dir = BENCH_ROOT / benchmark
     for name in backends:
@@ -297,7 +298,7 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
         target_dir = bench_dir / f"target-prof-{key}"
         prof_dir = bench_dir / f"prof-{key}"
 
-        if rerun:
+        if rerun is True or (callable(rerun) and rerun(name)):
             shutil.rmtree(prof_dir, ignore_errors=True)
 
         for iteration in range(ITERATIONS):

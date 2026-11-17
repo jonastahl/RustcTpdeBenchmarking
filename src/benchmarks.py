@@ -131,6 +131,8 @@ def run_compiletime_benchmark(config, rerun=False, db="results.db", suffix="", c
         remove_sections(db)
     pin = ["taskset", "--cpu-list", f"0-{cores - 1}"] if cores else []
     for (compiler, name, settings) in config:
+        if purge:
+            remove_sections(db, name)
         tracker = Tracker()
         tracker.start()
         run_task(f"Running benchmark with compiler {name}{suffix}",

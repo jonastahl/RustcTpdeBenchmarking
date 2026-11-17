@@ -103,8 +103,15 @@ def store_sections(db, variant, results):
     file.write_text(json.dumps(stored, indent=1))
 
 
-def remove_sections(db):
-    sections_file(db).unlink(missing_ok=True)
+def remove_sections(db, variant=None):
+    """Removes the sections of db, only the ones of variant if given."""
+    file = sections_file(db)
+    if variant is None:
+        file.unlink(missing_ok=True)
+    elif file.exists():
+        stored = json.loads(file.read_text())
+        stored.pop(variant, None)
+        file.write_text(json.dumps(stored, indent=1))
 
 
 def section_results(db="results.db", suffix="", section=CODEGEN, baseline="LLVM", variants=None):
