@@ -13,11 +13,10 @@ import importlib
 import shutil
 from pathlib import Path
 
-from src.benchmarks import (check_results, compiletime_db, compiletime_results, compiletime_suffix,
-                            run_check_benchmark, run_compiletime_benchmark, run_runtime_benchmark, runtime_db,
-                            runtime_results, runtime_suffix, variant_config)
+from src.benchmarks import (compiletime_db, compiletime_results, compiletime_suffix, run_compiletime_benchmark,
+                            run_runtime_benchmark, runtime_db, runtime_results, runtime_suffix, variant_config)
 from src.helper import TMP_DIR
-from src.runs import BackendTime, CheckTime, CompileTime, Runtime, SelfProfile
+from src.runs import BackendTime, CompileTime, Runtime, SelfProfile
 from src.sections import section_results
 from src.self_profile import run_self_profile, self_profile_results
 from src.setup import run_setup
@@ -37,8 +36,6 @@ class Jobs:
     def __init__(self, runs):
         # (cgu, cores, threads, suite) -> variants
         self.compiletime = {}
-        # (cgu, cores, threads, suite) of the check runs
-        self.check = []
         # cgu -> variants
         self.runtime = {}
         # benchmark -> {"backends": [...], "ir_size": bool}
@@ -47,8 +44,6 @@ class Jobs:
             # A BackendTime is recorded during the CompileTime run with its settings
             if isinstance(run, CompileTime):
                 add_new(self.compiletime.setdefault(run.key, []), run.variants)
-            elif isinstance(run, CheckTime):
-                add_new(self.check, [run.key])
             elif isinstance(run, Runtime):
                 add_new(self.runtime.setdefault(run.cgu, []), run.variants)
             elif isinstance(run, SelfProfile):
@@ -60,17 +55,12 @@ class Jobs:
                 raise TypeError(f"Unknown run: {run!r}")
 
     def run(self, rerun):
-        for key in dict.fromkeys([*self.compiletime, *self.check]):
+        for key, variants in self.compiletime.items():
             cgu, cores, threads, suite = key
-            variants = self.compiletime.get(key, [])
             settings = {"db": compiletime_db(*key), "suffix": compiletime_suffix(*key),
                         "cargo_configs": [f"profile.dev.codegen-units={cgu}"] if cgu else [],
                         "cores": cores, "threads": threads, "suite": suite}
-            if variants:
-                run_compiletime_benchmark(variant_config(variants), rerun=rerun, **settings)
-            # The check results share the database, which a rerun of the variants already removed
-            if key in self.check:
-                run_check_benchmark(rerun=rerun and not variants, **settings)
+            run_compiletime_benchmark(variant_config(variants), rerun=rerun, **settings)
         for cgu, variants in self.runtime.items():
             run_runtime_benchmark(variant_config(variants), db=runtime_db(cgu), cgu=cgu, suffix=runtime_suffix(cgu))
         for benchmark, job in self.self_profile.items():
@@ -87,7 +77,6 @@ class Jobs:
                 key: section_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key), variants=variants)
                 for key, variants in self.compiletime.items()
             },
-            "check": {key: check_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key)) for key in self.check},
             "runtime": {cgu: runtime_results(db=runtime_db(cgu), suffix=runtime_suffix(cgu), variants=variants)
                         for cgu, variants in self.runtime.items()},
             "self_profile": {
@@ -102,8 +91,6 @@ def run_results(run, results):
     if isinstance(run, CompileTime):
         data = results["backend" if isinstance(run, BackendTime) else "compiletime"][run.key]
         return {name: data[name] for name in run.variants if name in data}
-    if isinstance(run, CheckTime):
-        return results["check"][run.key]
     if isinstance(run, Runtime):
         data = results["runtime"][run.cgu]
         return {name: data[name] for name in run.variants if name in data}

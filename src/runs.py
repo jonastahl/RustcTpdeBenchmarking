@@ -72,30 +72,6 @@ class BackendTime(CompileTime):
 
 
 @dataclass(frozen=True)
-class CheckTime:
-    """Compile time (wall-time) of the compile-time benchmarks of rustc-perf with the Check profile, which runs the
-    frontend without codegen. It doesn't depend on the backend, so it is only measured with LLVM. Together with the
-    CompileTime run of the same settings it gives the share of codegen in the compile time.
-
-    The settings are the same as of CompileTime, a CheckTime shares the database of the CompileTime with its settings.
-
-    Results: {benchmark: [samples]}"""
-    cgu: int | None = None
-    cores: int | None = None
-    threads: int | None = None
-
-    @property
-    def key(self):
-        return self.cgu, self.cores, self.threads, "compile"
-
-    def name(self):
-        return f"Checktime[cores={self.cores} cgu={self.cgu} threads={self.threads}]"
-
-    def short_name(self):
-        return settings_name(self.cgu, self.cores, self.threads)
-
-
-@dataclass(frozen=True)
 class Runtime:
     """Runtime (wall-time) of the runtime benchmarks of rustc-perf, compiled with each variant.
 

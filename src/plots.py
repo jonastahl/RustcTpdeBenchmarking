@@ -426,96 +426,11 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
     save(fig, plot_name)
 
 
-# Backend speedups of the reference curves in the scatter plot, math.inf is a backend taking no time at all
-REFERENCE_SPEEDUPS = [2, 5, math.inf]
-
-
-def codegen_shares(results, checks, relative):
-    """{benchmark: share} of codegen in the compile time with the baseline: 1 - check / debug of the medians."""
-    baseline = median_of_series(results[relative])
-    check = median_of_series(checks)
-    return {benchmark: 1 - check[benchmark] / ms for benchmark, ms in baseline.items() if benchmark in check}
-
-
-def generate_scatter_plot(plot_name, title, results, runs, checks, relative="LLVM", labeled=3):
-    """The change of every benchmark over the share of codegen in its compile time with the baseline, per run. checks
-    are the results of the CheckTime runs with the same settings as runs, giving the time without codegen.
-
-    The gray curves are a model: if codegen is a share s of the compile time and the backend makes it k times faster,
-    the compile time changes to 1 - s * (1 - 1 / k). Codegen here is everything the check profile skips, including
-    linking, which all backends share, so even an infinitely fast backend stays above its curve. The labeled benchmarks
-    with the largest change are named."""
-    df = benchmark_frame(results, runs, relative)
-    shares = {run.short_name(): codegen_shares(result, check, relative)
-              for run, result, check in zip(runs, results, checks)}
-    df["Codegen share"] = [shares[run].get(benchmark) for run, benchmark in zip(df["Run"], df["Benchmark"])]
-    missing = df["Codegen share"].isna().sum()
-    if missing:
-        print(f"Scatter {plot_name}: {missing} points without check results left out")
-    df = df.dropna(subset=["Codegen share"])
-    if df.empty:
-        print(f"Scatter {plot_name}: no check results, skipped")
-        return
-    backends = ordered(set(df["Backend"]))
-    run_names = [run.short_name() for run in runs]
-
-    fig, axes = panels(len(run_names))
-    share = np.linspace(0, 1, 101)
-    for ax, run in zip(axes, run_names):
-        for speedup in REFERENCE_SPEEDUPS:
-            ax.plot(share * 100, 1 - share * (1 - 1 / speedup), color=GRID, linewidth=1, zorder=1)
-
-        data = df[df["Run"] == run]
-        for backend in backends:
-            points = data[data["Backend"] == backend]
-            ax.scatter(points["Codegen share"] * 100, points["Ratio"], s=14, color=variant_color(backend),
-                       label=backend, edgecolors=SURFACE, linewidths=0.5, alpha=0.85, zorder=3)
-        # Name the outliers of the first backend, the others are mostly the same benchmarks. A point close to an
-        # already named one is skipped, the labels would overlap (e.g. ripgrep and ripgrep-nll).
-        if labeled and backends:
-            first = data[data["Backend"] == backends[0]]
-            names = []
-            for _, row in first.loc[np.abs(np.log(first["Ratio"])).sort_values(ascending=False).index].iterrows():
-                if len(names) == labeled:
-                    break
-                x, y = row["Codegen share"], math.log(row["Ratio"])
-                if any(abs(x - nx) < 0.15 and abs(y - ny) < 0.03 for nx, ny in names):
-                    continue
-                names.append((x, y))
-                ax.annotate(row["Benchmark"], (row["Codegen share"] * 100, row["Ratio"]), xytext=(4, 0),
-                            textcoords="offset points", fontsize=6, color=TEXT_SECONDARY, va="center")
-        baseline_line(ax, relative)
-        ax.grid(axis="x")
-        ax.set_xlim(0, 100)
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:.0f}%"))
-        if len(run_names) > 1:
-            ax.set_title(run, fontweight="normal")
-
-    # The reference curves reach far below the data, only show the range of the data
-    low, high = df["Ratio"].min() / 1.05, df["Ratio"].max() * 1.05
-    axes[0].set_ylim(low, high)
-    ratio_axis(axes[0])
-    # Label each reference curve at its last point within the visible range
-    for ax in axes:
-        for speedup in REFERENCE_SPEEDUPS:
-            curve = 1 - share * (1 - 1 / speedup)
-            index = max(i for i in range(len(share)) if curve[i] >= low * 1.03 and share[i] <= 0.95)
-            label = "\u221e" if speedup == math.inf else f"{speedup}\u00d7"
-            ax.annotate(label, (share[index] * 100, curve[index]), fontsize=6, color=NEUTRAL, ha="left", va="bottom",
-                        xytext=(2, 1), textcoords="offset points", zorder=2)
-        if ax.get_subplotspec().is_first_col():
-            ax.set_ylabel(f"Relative to {relative}")
-    xlabel = f"Share of codegen in the compile time with {relative}"
-    if len(run_names) == 1:
-        axes[0].set_xlabel(xlabel)
-    else:
-        fig.supxlabel(xlabel, fontsize=9, color=TEXT_SECONDARY)
-    handles, labels = axes[0].get_legend_handles_labels()
-    handles.append(plt.Line2D([], [], color=GRID, linewidth=1))
-    labels.append("Backend k\u00d7 faster")
-    fig.legend(handles, labels, title="Backend", loc="outside right upper")
-    fig.suptitle(title, fontweight="bold", fontsize=10)
-    save(fig, plot_name)
+def backend_shares(compiletimes, backendtimes, variant):
+    """{benchmark: share} of the backend in the compile time of variant: backend time / compile time of the medians."""
+    total = median_of_series(compiletimes[variant])
+    backend = median_of_series(backendtimes[variant])
+    return {benchmark: backend[benchmark] / time for benchmark, time in total.items() if benchmark in backend}
 
 
 def generate_heatmap_self_perf(plot_name, title, results, phases, relative="LLVM", limits=None):
