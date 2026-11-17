@@ -330,6 +330,10 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
             if output is None:
                 shutil.rmtree(prof_dir, ignore_errors=True)
                 break
+            if not profiles(partial_dir):
+                print(f"Skipping {benchmark} ({name}): no self-profiles, probably a proc-macro crate")
+                shutil.rmtree(prof_dir, ignore_errors=True)
+                break
             iteration_summary(description, partial_dir)
             partial_dir.rename(iteration_dir)
 
