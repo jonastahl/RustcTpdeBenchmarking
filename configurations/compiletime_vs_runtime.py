@@ -3,7 +3,7 @@ compile-time benchmarks (src.benchmarks.RT_PREFIX), with the default number of c
 
 from src.benchmarks import RT_PREFIX, runtime_benchmark_groups
 from src.plots import generate_compile_runtime_heatmap
-from src.runs import CompileTime, Runtime
+from src.runs import Runtime, BackendTime
 
 VARIANTS = ["LLVM", "LLVM O1", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE MIR2",
             "TPDE inline MIR2", "TPDE inline,promote MIR2"]
@@ -14,7 +14,7 @@ CGUS = [None, 1]
 
 def get_config():
     return [
-        *[CompileTime(VARIANTS, cgu=cgu, suite="runtime") for cgu in CGUS],
+        *[BackendTime(VARIANTS, cgu=cgu, suite="runtime") for cgu in CGUS],
         *[Runtime(VARIANTS, cgu=cgu) for cgu in CGUS],
     ]
 
