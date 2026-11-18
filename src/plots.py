@@ -11,8 +11,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Rectangle
 from matplotlib.textpath import TextPath
 from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator, NullLocator
+from matplotlib.transforms import ScaledTranslation, blended_transform_factory
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = ROOT / "results"
@@ -313,14 +315,19 @@ def generate_distribution_plot_self_perf(plot_name, title, results, runs, phase,
     generate_distribution_plot(plot_name, title, self_perf_results(results, phase), [Wrapper(phase)], relative)
 
 
-def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=None, extra=None, extra_title=None):
+def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=None, extra=None, extra_title=None,
+                     row_groups=None, shared_runs=()):
     """Every benchmark (rows) with every run and backend (columns), sorted by the mean change over all columns. Missing
     cells are benchmarks a backend failed on, backends without any result in a run get no column. limits is the
     (low, high) ratio of the color scale, beyond which the colors saturate, by default symmetric around the baseline at
     the 98th percentile of the changes.
 
     extra are additional columns {label: {benchmark: share}} with shares between 0 and 1, shown in % at the end of each
-    row with their own color scale, under extra_title."""
+    row with their own color scale, under extra_title.
+
+    row_groups {row: group} keeps the rows of a group together and names the group left of them: the groups are sorted
+    by the mean change of their rows, the rows within a group by their own. The runs named in shared_runs have the same
+    value in every row of a group, which is drawn as one cell spanning the rows of the group."""
     df = benchmark_frame(results, runs, relative)
     if df.empty:
         print(f"Heatmap {plot_name}: no results, skipped")
@@ -341,7 +348,13 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
     else:
         df["Value"] = np.log10(df["Time (ms)"])
     table = df.pivot_table(index="Benchmark", columns="Column", values="Value").reindex(columns=columns)
-    table = table.loc[table.mean(axis=1).sort_values().index]
+    means = table.mean(axis=1).fillna(math.inf)
+    if row_groups:
+        group_of = {row: row_groups.get(row, row) for row in table.index}
+        group_means = means.groupby(group_of).mean()
+        table = table.loc[sorted(table.index, key=lambda row: (group_means[group_of[row]], group_of[row], means[row]))]
+    else:
+        table = table.loc[means.sort_values().index]
 
     if relative:
         def cell(v):
@@ -366,6 +379,23 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
                  "cbar_kws": {"format": FuncFormatter(lambda v, _: f"{10 ** v:.0f}"),
                               "shrink": 0.5 if len(table) > 15 else 1,
                               "label": "Time (ms)"}}
+    # The rows of each group as (group, first row index, number of rows), in the order of the table
+    group_spans = []
+    if row_groups:
+        for index, row in enumerate(table.index):
+            group = row_groups.get(row, row)
+            if group_spans and group_spans[-1][0] == group:
+                group_spans[-1][2] += 1
+            else:
+                group_spans.append([group, index, 1])
+    # The shared runs are drawn as one cell spanning all rows of a group, see below
+    shared = [column for column in columns
+              if (column.split("\n")[0] if multi else run_names[0]) in shared_runs] if row_groups else []
+    merged = [(column, start, count, annot[column].iloc[start:start + count].replace("", np.nan).dropna(),
+               table[column].iloc[start:start + count].dropna())
+              for column in shared for _, start, count in group_spans if count > 1]
+    for column, start, count, _, _ in merged:
+        annot.iloc[start:start + count, columns.index(column)] = ""
 
     # Fixed cell sizes, the labels around the cells extend the figure when it is saved (bbox_inches="tight")
     cell = max(text_width("+888", 6), text_width("100%", 6)) + HEATMAP_CELL_PADDING
@@ -389,6 +419,32 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
     ax.tick_params(axis="y", labelsize=7)
     ax.tick_params(axis="x", labelsize=7)
     ax.grid(False)
+    # One cell per group for the shared runs, over the cells of its rows, with the color of the value
+    mesh = ax.collections[0]
+    for column, start, count, labels, values in merged:
+        if values.empty:
+            continue
+        color = mesh.cmap(mesh.norm(values.iloc[0]))
+        x = columns.index(column)
+        ax.add_patch(Rectangle((x, start), 1, count, facecolor=color, edgecolor=SURFACE, linewidth=0.5))
+        if not labels.empty:
+            text = ".15" if sns.utils.relative_luminance(color) > 0.408 else "w"
+            ax.text(x + 0.5, start + count / 2, labels.iloc[0], ha="center", va="center", fontsize=6, color=text)
+    # The name of each group left of the row labels, with a bracket over its rows. A group with a single row of the
+    # same name needs none.
+    if row_groups:
+        renderer = fig.canvas.get_renderer()
+        label_width = max(label.get_window_extent(renderer).width for label in ax.get_yticklabels()) * 72 / fig.dpi
+        offset = label_width + 10
+        to_left = blended_transform_factory(ax.transAxes, ax.transData) + ScaledTranslation(-offset / 72, 0,
+                                                                                            fig.dpi_scale_trans)
+        for group, start, count in group_spans:
+            if count == 1 and table.index[start] == group:
+                continue
+            ax.plot([0, 0], [start + 0.2, start + count - 0.2], color=TEXT_SECONDARY, linewidth=0.8,
+                    transform=to_left, clip_on=False)
+            ax.annotate(group, xy=(0, start + count / 2), xycoords=to_left, xytext=(-4, 0), textcoords="offset points",
+                        ha="right", va="center", fontsize=8, color=TEXT, annotation_clip=False)
     # Separate the runs and name them above their group of columns, the columns only name the backend
     if multi:
         position = 0
@@ -453,17 +509,29 @@ def runtime_per_group(results, groups):
 
 
 def compile_runtime_runs(compiletimes, runtimes, settings, groups, prefix=""):
-    """The compile time and runtime of the runtime benchmark groups as (results, runs) for generate_heatmap, a compile
-    time and a runtime run for each of the settings (names of the runs). compiletimes are the results of the copies of
-    the groups, named prefix + group, runtimes the results of their benchmarks, groups maps each group to its
-    benchmarks. The runtime of a group is the geometric mean of its benchmarks."""
-    results, runs = [], []
+    """The compile time and runtime of the runtime benchmarks as (results, runs, row_groups, shared_runs) for
+    generate_heatmap, a compile time and a runtime run for each of the settings (names of the runs). compiletimes are
+    the results of the copies of the groups, named prefix + group, runtimes the results of their benchmarks, groups
+    maps each group to its benchmarks.
+
+    Every runtime benchmark is a row, named after the benchmark (the names are unique among all groups), row_groups
+    names its group. The compile time is of the whole group, so it is the same in all rows of the group
+    (shared_runs)."""
+    rows = {(group, benchmark): benchmark for group, benchmarks in groups.items() for benchmark in benchmarks}
+    if len(set(rows.values())) < len(rows):
+        raise ValueError("Runtime benchmark names are not unique among the groups")
+    row_groups = {row: group for (group, _), row in rows.items()}
+    results, runs, shared_runs = [], [], []
     for setting, compiletime, runtime in zip(settings, compiletimes, runtimes):
-        results.append(strip_prefix(compiletime, prefix))
+        compiletime = strip_prefix(compiletime, prefix)
+        results.append({variant: {row: series[group] for (group, _), row in rows.items() if group in series}
+                        for variant, series in compiletime.items()})
         runs.append(Wrapper(f"Compile time, {setting}" if setting else "Compile time"))
-        results.append(runtime_per_group(runtime, groups))
+        shared_runs.append(runs[-1].short_name())
+        results.append({variant: {row: series[benchmark] for (_, benchmark), row in rows.items() if benchmark in series}
+                        for variant, series in runtime.items()})
         runs.append(Wrapper(f"Runtime, {setting}" if setting else "Runtime"))
-    return results, runs
+    return results, runs, row_groups, shared_runs
 
 
 def strip_prefix(results, prefix):
@@ -474,7 +542,7 @@ def strip_prefix(results, prefix):
 
 def generate_compile_runtime_heatmap(plot_name, title, compiletimes, runtimes, settings, groups, relative="LLVM",
                                      prefix=""):
-    """generate_heatmap with the compile time next to the runtime of the same runtime benchmark groups (rows), see
-    compile_runtime_runs."""
-    results, runs = compile_runtime_runs(compiletimes, runtimes, settings, groups, prefix)
-    generate_heatmap(plot_name, title, results, runs, relative)
+    """generate_heatmap with the compile time of the runtime benchmark groups next to the runtime of each of their
+    benchmarks (rows), see compile_runtime_runs."""
+    results, runs, row_groups, shared_runs = compile_runtime_runs(compiletimes, runtimes, settings, groups, prefix)
+    generate_heatmap(plot_name, title, results, runs, relative, row_groups=row_groups, shared_runs=shared_runs)
