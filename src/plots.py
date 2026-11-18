@@ -482,6 +482,20 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
     save(fig, plot_name)
 
 
+def relative_to_own_baseline(pairs, baseline):
+    """Results for generate_heatmap with relative=baseline in which every variant is relative to its own baseline:
+    pairs is {variant: (series, baseline series)}, both {benchmark: samples}. The samples of each benchmark are divided
+    by the median of the same benchmark in the baseline series, the baseline is 1 for all benchmarks. So every cell is
+    the median of the variant divided by the median of its baseline, benchmarks missing in either are left out."""
+    normalized = {}
+    for variant, (series, base) in pairs.items():
+        medians = {benchmark: statistics.median(samples) for benchmark, samples in base.items()}
+        normalized[variant] = {benchmark: [sample / medians[benchmark] for sample in samples]
+                               for benchmark, samples in series.items() if medians.get(benchmark)}
+    benchmarks = {benchmark for series in normalized.values() for benchmark in series}
+    return {baseline: {benchmark: [1.0] for benchmark in benchmarks}, **normalized}
+
+
 def backend_shares(compiletimes, backendtimes, variant):
     """{benchmark: share} of the backend in the compile time of variant: backend time / compile time of the medians."""
     total = median_of_series(compiletimes[variant])

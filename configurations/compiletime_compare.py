@@ -1,16 +1,19 @@
-"""Compile time of all backends, depending on the number of cores and with a single codegen unit."""
+"""Compile time of all backends, depending on the number of cores. The comparison with a single codegen unit is in
+cgu_compare."""
 
 from src.plots import backend_shares, generate_heatmap
 from src.runs import CompileTime, BackendTime
 
-VARIANTS = ["LLVM", "LLVM O1", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE MIR2", "TPDE inline MIR2", "TPDE inline,promote MIR2", "Custom LLVM", "Custom TPDE"]
+# The custom rustc builds are compared in custom_compare
+VARIANTS = ["LLVM", "LLVM O1", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote", "TPDE MIR2", "TPDE inline MIR2",
+            "TPDE inline,promote MIR2"]
 
 # 32 is all physical cores of the benchmark machine. The cores 0..31 being distinct physical cores (no hyperthreading
 # siblings) depends on the CPU numbering, check with `lscpu -e`.
-CORES = [32, 8, 4, 2, 1]
+CORES = [32, 2, 1]
 
-# Settings of the runs: cores, and all cores with a single codegen unit
-SETTINGS = [*[{"cores": cores} for cores in CORES], {"cgu": 1}]
+# Settings of the runs
+SETTINGS = [{"cores": cores} for cores in CORES]
 
 
 def get_config():
