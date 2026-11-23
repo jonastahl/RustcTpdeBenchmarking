@@ -6,7 +6,7 @@ BACKEND_PATH="${SCRIPT_DIR}/../deps/RustcTpde/target/release/librustc_codegen_tp
 
 export TPDE_INLINE_COST=10
 exec rustc \
-  +nightly-2026-10-28 \
+  +nightly-2026-11-20 \
   -Z codegen-backend="${BACKEND_PATH}" \
   -C llvm-args=inline=yes \
   "$@"

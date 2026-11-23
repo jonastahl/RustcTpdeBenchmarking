@@ -12,7 +12,7 @@ FLAMEGRAPH_DIR = ROOT / "flamegraphs"
 BACKEND_TPDE = ROOT / "deps/RustcTpde/target/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_NO_CACHE = ROOT / "deps/RustcTpde/target-no-cache/release/librustc_codegen_tpde.so"
 BACKEND_TPDE_LLVM = ROOT / "deps/rustc_codegen_llvm_tpde/dist/lib/librustc_codegen_tpde.so"
-TOOLCHAIN = "+nightly-2026-10-28"
+TOOLCHAIN = "+nightly-2026-11-20"
 TARGET = "x86_64-unknown-linux-gnu"
 
 ITERATIONS = 5

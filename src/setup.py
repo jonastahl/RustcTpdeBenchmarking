@@ -173,7 +173,7 @@ def run_setup(rebuild=False):
     # Install the pinned nightly toolchain with cranelift and gcc components
     run_task("Install nightly toolchain with gcc and cranelift",
              [
-                 "rustup", "toolchain", "install", "nightly-2026-10-28",
+                 "rustup", "toolchain", "install", "nightly-2026-11-20",
                  "--component", "rustc-codegen-cranelift",
                  "--component", "rustc-codegen-gcc",
              ])
@@ -182,5 +182,5 @@ def run_setup(rebuild=False):
     run_task("Add gcc component for libgccjit",
              [
                  "rustup", "component", "add", "gcc-x86_64-unknown-linux-gnu-preview",
-                 "--toolchain", "nightly-2026-10-28",
+                 "--toolchain", "nightly-2026-11-20",
              ])
