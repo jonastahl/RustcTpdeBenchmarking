@@ -17,7 +17,7 @@ LLVM_PASS_SECTIONS = {
     "SelectionDAG": (None, ["-Cllvm-args=-fast-isel=false"]),
     # Greedy register allocation
     "Greedy register": (None, ["-Cllvm-args=-optimize-regalloc", "-Cllvm-args=-regalloc=greedy"]),
-    "DAG,Greedy": (None, ["-Cllvm-args=-fast-isel=false", "-Cllvm-args=-optimize-regalloc",
+    "DAG+Greedy": (None, ["-Cllvm-args=-fast-isel=false", "-Cllvm-args=-optimize-regalloc",
                                "-Cllvm-args=-regalloc=greedy"]),
 }
 
