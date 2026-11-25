@@ -11,3 +11,6 @@
 	path = deps/rust
 	url = https://github.com/jonastahl/rust
 	branch = tpde
+[submodule "rustc_codegen_cranelift"]
+	path = deps/rustc_codegen_cranelift
+	url = https://github.com/rust-lang/rustc_codegen_cranelift

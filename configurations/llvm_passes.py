@@ -11,7 +11,7 @@ from src.helper import run_task
 from src.plots import generate_compile_runtime_heatmap, save_result
 from src.runs import BackendTime, Runtime
 
-VARIANTS = ["LLVM", "LLVM O1", *LLVM_PASS_OPTIMIZATIONS]
+VARIANTS = ["LLVM", "IR-O1", *LLVM_PASS_OPTIMIZATIONS]
 
 # None is the default of the dev profile, 256 codegen units
 CGUS = [None]
