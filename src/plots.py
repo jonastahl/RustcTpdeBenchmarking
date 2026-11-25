@@ -591,7 +591,6 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
         save(fig, name)
 
     render(plot_name, compact=False)
-    render(f"{plot_name}_compact", compact=True)
 
 
 def relative_to_own_baseline(pairs, baseline):
