@@ -8,42 +8,39 @@ from pathlib import Path
 from src.helper import run_task, print_table
 from src.sections import CARGO_CONFIGS as SECTION_CONFIGS, Tracker, remove_sections, store_sections
 
-# Variants that run LLVM with single parts of its O1 pipeline, to see which passes bring which improvements in compile
-# time and runtime (configurations/llvm_passes). All keep opt-level=0 for the LLVM backend (FastISel + fast register
-# allocator), since TPDE has no SelectionDAG or greedy register allocator either. On top of the O0 pipeline (only
-# always-inline), each runs its own pass pipeline (-Cpasses, in the syntax of `opt -passes=`).
-#
-# name: (pipeline for -Cpasses or None, further rustc flags)
-LLVM_PASS_VARIANTS = {
-    # The whole O1 IR pipeline, but with the O0 backend
-    "LLVM O1 IR": ("default<O1>", []),
-    # The MIR optimizations of mir-opt-level 2. Without MIR inlining: rustc only enables it at mir-opt-level 2 together
-    # with opt-level >= 2 (-Zinline-mir would force it).
-    "LLVM MIR2": (None, ["-Zmir-opt-level=2"]),
+LLVM_PASS_SECTIONS = {
+    "MIR2": (None, ["-Zmir-opt-level=2"]),
+    "IR-O1": ("default<O1>", []),
+    "MIR2 IR-O1": ("default<O1>", ["-Zmir-opt-level=2"]),
 
-    # Parts of the O1 backend, without any IR passes. SelectionDAG still runs with the O0 level (fewer DAG combines).
-    # The optimized register allocation also brings its pipeline (coalescer, machine scheduler, machine LICM, ...).
-    "LLVM DAG": (None, ["-Cllvm-args=-fast-isel=false"]),
-    "LLVM greedy": (None, ["-Cllvm-args=-optimize-regalloc", "-Cllvm-args=-regalloc=greedy"]),
-    "LLVM DAG,greedy": (None, ["-Cllvm-args=-fast-isel=false", "-Cllvm-args=-optimize-regalloc",
+    # SelectionDAG for instruction selection
+    "SelectionDAG": (None, ["-Cllvm-args=-fast-isel=false"]),
+    # Greedy register allocation
+    "Greedy register": (None, ["-Cllvm-args=-optimize-regalloc", "-Cllvm-args=-regalloc=greedy"]),
+    "DAG,Greedy": (None, ["-Cllvm-args=-fast-isel=false", "-Cllvm-args=-optimize-regalloc",
                                "-Cllvm-args=-regalloc=greedy"]),
+}
 
-    # Single passes
-    "LLVM +inline": ("cgscc(inline)", []),
-    "LLVM +sroa": ("function(sroa<modify-cfg>)", []),
-    "LLVM +mem2reg": ("function(mem2reg)", []),
-    "LLVM +instcombine": ("function(instcombine<max-iterations=1;no-verify-fixpoint>)", []),
-    "LLVM +simplifycfg": ("function(simplifycfg)", []),
-    "LLVM +early-cse": ("function(early-cse)", []),
-    "LLVM +sccp": ("function(sccp)", []),
-    # LICM only finds something to hoist once SROA turned the allocas into SSA values
-    "LLVM +sroa,licm": ("function(sroa<modify-cfg>,loop-mssa(licm))", []),
+SIMPLIFYCFG_MIN = "simplifycfg<bonus-inst-threshold=0;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;no-speculate-blocks;no-simplify-cond-branch;no-speculate-unpredictables>"
+SIMPLIFYCFG_O1 = "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>"
 
-    # Inlining followed by the simplification of each inlined function, like the inliner pipeline of O1
-    "LLVM +inline,sroa": ("cgscc(inline,function(sroa<modify-cfg>))", []),
-    "LLVM +inline,simplify": (
-        "cgscc(devirt<4>(inline,function(sroa<modify-cfg>,early-cse,simplifycfg,"
-        "instcombine<max-iterations=1;no-verify-fixpoint>)))", []),
+LLVM_PASS_OPTIMIZATIONS = {
+    "inline": ("cgscc(inline)", []),
+
+    "inline+mem2reg": ("cgscc(inline,function(mem2reg))", []),
+    "inline+sroa": ("cgscc(inline,function(sroa<modify-cfg>))", []),
+    "inline+memcpyopt": ("cgscc(inline,function(memcpyopt))", [], ),
+
+    "inline+sroa+instsimplify": ("cgscc(inline,function(sroa<modify-cfg>,instsimplify))", []),
+    "inline+sroa+sccp": ("cgscc(inline,function(sroa<modify-cfg>,sccp))", []),
+
+    "inline+sroa+sccp+simplifycfg_min": (f"cgscc(inline,function(sroa<modify-cfg>,sccp,{SIMPLIFYCFG_MIN}))", [], ),
+    "inline+sroa+sccp+simplifycfg_o1": (f"cgscc(inline,function(sroa<modify-cfg>,sccp,{SIMPLIFYCFG_O1}))", []),
+}
+
+LLVM_PASS_VARIANTS = {
+    **LLVM_PASS_SECTIONS,
+    **LLVM_PASS_OPTIMIZATIONS
 }
 
 # The variants of the compile time and runtime benchmarks by name: the rustc wrapper script in variants/, the cargo

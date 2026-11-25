@@ -5,12 +5,12 @@ src.benchmarks.LLVM_PASS_VARIANTS on the runtime benchmarks, like compiletime_vs
 parameters of their passes."""
 from pathlib import Path
 
-from src.benchmarks import LLVM_PASS_VARIANTS, RT_PREFIX, runtime_benchmark_groups
+from src.benchmarks import RT_PREFIX, runtime_benchmark_groups, LLVM_PASS_OPTIMIZATIONS
 from src.helper import run_task
 from src.plots import generate_compile_runtime_heatmap
 from src.runs import BackendTime, Runtime
 
-VARIANTS = ["LLVM", "LLVM O1", *LLVM_PASS_VARIANTS]
+VARIANTS = ["LLVM", "LLVM O1", *LLVM_PASS_OPTIMIZATIONS]
 
 # None is the default of the dev profile, 256 codegen units
 CGUS = [None]
