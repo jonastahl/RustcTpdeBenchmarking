@@ -6,3 +6,6 @@ llvm/
 *.svg
 chrome-profile-tpde.json
 *.pyc
+
+variants/generated/
+results

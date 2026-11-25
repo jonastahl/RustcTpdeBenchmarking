@@ -16,6 +16,8 @@ from matplotlib.textpath import TextPath
 from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator, NullLocator
 from matplotlib.transforms import ScaledTranslation, blended_transform_factory
 
+from src.benchmarks import LLVM_PASS_VARIANTS
+
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = ROOT / "results"
 
@@ -28,7 +30,7 @@ NEUTRAL = "#8a8984"
 VARIANT_ORDER = ["LLVM", "LLVM O1", "LLVM O2", "LLVM O3", "Cranelift", "TPDE", "TPDE inline", "TPDE inline,promote",
                  "TPDE MIR2", "TPDE inline MIR2", "TPDE inline,promote MIR2",
                  "TPDE inline 10", "TPDE inline 20", "TPDE inline 50", "TPDE inline 100", "TPDE inline 500",
-                 "TPDE LLVM"]
+                 "TPDE LLVM", *LLVM_PASS_VARIANTS]
 VARIANT_COLORS = {
     "LLVM": "#e34948",
     "LLVM O1": "#2a78d6",
@@ -121,6 +123,13 @@ HEATMAP_ROW_HEIGHT = 0.2
 HEATMAP_EXTRA_GAP = 0.08
 HEATMAP_CBAR_GAP = 0.12
 HEATMAP_CBAR_WIDTH = 0.12
+# The compact heatmaps only show the colors: narrow cells, low rows (higher with row groups, whose names are next to
+# the rows)
+HEATMAP_COMPACT_CELL = 0.13
+HEATMAP_COMPACT_ROW_HEIGHT = 0.05
+HEATMAP_COMPACT_GROUP_ROW_HEIGHT = 0.11
+# Name of the first row of the heatmaps, the average of each column
+AVERAGE_ROW = "Average"
 
 
 def text_width(text, fontsize):
@@ -327,7 +336,13 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
 
     row_groups {row: group} keeps the rows of a group together and names the group left of them: the groups are sorted
     by the mean change of their rows, the rows within a group by their own. The runs named in shared_runs have the same
-    value in every row of a group, which is drawn as one cell spanning the rows of the group."""
+    value in every row of a group, which is drawn as one cell spanning the rows of the group.
+
+    The columns are named above the cells, the first row is the average of each column: the geometric mean of the
+    ratios (or times) of all rows, in the shared runs of all groups, and the mean of the extra shares.
+
+    Next to plot_name, a compact version plot_name_compact only shows the colors, without the values and the row
+    labels (the names of the row groups and of the average row are kept)."""
     df = benchmark_frame(results, runs, relative)
     if df.empty:
         print(f"Heatmap {plot_name}: no results, skipped")
@@ -356,6 +371,27 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
     else:
         table = table.loc[means.sort_values().index]
 
+    # The rows of each group as (group, first row index, number of rows), in the order of the table
+    group_spans = []
+    if row_groups:
+        for index, row in enumerate(table.index):
+            group = row_groups.get(row, row)
+            if group_spans and group_spans[-1][0] == group:
+                group_spans[-1][2] += 1
+            else:
+                group_spans.append([group, index + 1, 1])
+    # The shared runs are drawn as one cell spanning all rows of a group, see below
+    shared = [column for column in columns
+              if (column.split("\n")[0] if multi else run_names[0]) in shared_runs] if row_groups else []
+
+    # The average of every column as the first row, the mean of the logarithms (the geometric mean of the ratios or
+    # times). In the shared runs, every group counts once instead of once per row.
+    average = table.mean(axis=0)
+    for column in shared:
+        average[column] = np.nanmean([table[column].iloc[start - 1:start - 1 + count].mean()
+                                      for _, start, count in group_spans])
+    table = pd.concat([average.to_frame(AVERAGE_ROW).T, table])
+
     if relative:
         def cell(v):
             if np.isnan(v):
@@ -379,107 +415,161 @@ def generate_heatmap(plot_name, title, results, runs, relative="LLVM", limits=No
                  "cbar_kws": {"format": FuncFormatter(lambda v, _: f"{10 ** v:.0f}"),
                               "shrink": 0.5 if len(table) > 15 else 1,
                               "label": "Time (ms)"}}
-    # The rows of each group as (group, first row index, number of rows), in the order of the table
-    group_spans = []
-    if row_groups:
-        for index, row in enumerate(table.index):
-            group = row_groups.get(row, row)
-            if group_spans and group_spans[-1][0] == group:
-                group_spans[-1][2] += 1
-            else:
-                group_spans.append([group, index, 1])
-    # The shared runs are drawn as one cell spanning all rows of a group, see below
-    shared = [column for column in columns
-              if (column.split("\n")[0] if multi else run_names[0]) in shared_runs] if row_groups else []
-    merged = [(column, start, count, annot[column].iloc[start:start + count].replace("", np.nan).dropna(),
+    merged =[(column, start, count, annot[column].iloc[start:start + count].replace("", np.nan).dropna(),
                table[column].iloc[start:start + count].dropna())
               for column in shared for _, start, count in group_spans if count > 1]
     for column, start, count, _, _ in merged:
         annot.iloc[start:start + count, columns.index(column)] = ""
 
-    # Fixed cell sizes, the labels around the cells extend the figure when it is saved (bbox_inches="tight")
-    cell = max(text_width("+888", 6), text_width("100%", 6)) + HEATMAP_CELL_PADDING
-    heat_width, height = cell * len(columns), HEATMAP_ROW_HEIGHT * len(table)
-    extra_width = cell * len(extra) + HEATMAP_EXTRA_GAP if extra else 0
-    width = heat_width + extra_width + HEATMAP_CBAR_GAP + HEATMAP_CBAR_WIDTH
-    fig = plt.figure(figsize=(width, height))
-    ax = fig.add_axes((0, 0, heat_width / width, 1))
-    if extra:
-        extra_ax = fig.add_axes(((heat_width + HEATMAP_EXTRA_GAP) / width, 0, (extra_width - HEATMAP_EXTRA_GAP) / width, 1))
-    cbar_height = 0.5 if len(table) > 15 and not extra else 1
-    style["cbar_ax"] = fig.add_axes((1 - HEATMAP_CBAR_WIDTH / width, (1 - cbar_height) / 2, HEATMAP_CBAR_WIDTH / width,
-                                     cbar_height))
-    del style["cbar_kws"]["shrink"]
-    sns.heatmap(table, annot=annot, fmt="", annot_kws={"fontsize": 6}, linewidths=0.5, linecolor=SURFACE, ax=ax,
-                **style)
-    style["cbar_ax"].tick_params(labelsize=7)
-    style["cbar_ax"].yaxis.label.set_fontsize(8)
-    ax.set_ylabel("")
-    ax.set_xlabel("")
-    ax.tick_params(axis="y", labelsize=7)
-    ax.tick_params(axis="x", labelsize=7)
-    ax.grid(False)
-    # One cell per group for the shared runs, over the cells of its rows, with the color of the value
-    mesh = ax.collections[0]
-    for column, start, count, labels, values in merged:
-        if values.empty:
-            continue
-        color = mesh.cmap(mesh.norm(values.iloc[0]))
-        x = columns.index(column)
-        ax.add_patch(Rectangle((x, start), 1, count, facecolor=color, edgecolor=SURFACE, linewidth=0.5))
-        if not labels.empty:
-            text = ".15" if sns.utils.relative_luminance(color) > 0.408 else "w"
-            ax.text(x + 0.5, start + count / 2, labels.iloc[0], ha="center", va="center", fontsize=6, color=text)
-    # The name of each group left of the row labels, with a bracket over its rows. A group with a single row of the
-    # same name needs none.
-    if row_groups:
-        renderer = fig.canvas.get_renderer()
-        label_width = max(label.get_window_extent(renderer).width for label in ax.get_yticklabels()) * 72 / fig.dpi
-        offset = label_width + 10
-        to_left = blended_transform_factory(ax.transAxes, ax.transData) + ScaledTranslation(-offset / 72, 0,
-                                                                                            fig.dpi_scale_trans)
-        for group, start, count in group_spans:
-            if count == 1 and table.index[start] == group:
-                continue
-            ax.plot([0, 0], [start + 0.2, start + count - 0.2], color=TEXT_SECONDARY, linewidth=0.8,
-                    transform=to_left, clip_on=False)
-            ax.annotate(group, xy=(0, start + count / 2), xycoords=to_left, xytext=(-4, 0), textcoords="offset points",
-                        ha="right", va="center", fontsize=8, color=TEXT, annotation_clip=False)
-    # Separate the runs and name them above their group of columns, the columns only name the backend
-    if multi:
-        position = 0
-        labels = []
-        # If a run name is wider than its columns, all are wrapped to fit above them
-        wrapped = any(text_width(run, 8) > cell * len(names) - 0.15 and ", " in run for run, names in run_backends)
-        for index, (run, names) in enumerate(run_backends):
-            if index:
-                ax.axvline(position, color=SURFACE, linewidth=4)
-            name = run.replace(", ", "\n") if wrapped else run
-            ax.annotate(name, xy=(position + len(names) / 2, 1), xycoords=("data", "axes fraction"),
-                        xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=8,
-                        color=TEXT, annotation_clip=False)
-            position += len(names)
-            labels += names
-        ax.set_xticklabels(labels, rotation=30, ha="right", rotation_mode="anchor")
-        ax.set_title(title + (" (change in %)" if relative else " (ms)"), pad=26 if wrapped else 16)
-    else:
-        ax.set_title(title + (" (change in %)" if relative else " (ms)"))
-
+    cbar_kws = style.pop("cbar_kws")
+    del cbar_kws["shrink"]
     if extra:
         shares = pd.DataFrame({label: pd.Series(values, dtype=float) for label, values in extra.items()})
         shares = shares.reindex(index=table.index, columns=list(extra))
-        sns.heatmap(shares, annot=shares.map(lambda v: "" if np.isnan(v) else f"{v * 100:.0f}%"), fmt="",
-                    annot_kws={"fontsize": 6}, linewidths=0.5, linecolor=SURFACE, cmap=SEQUENTIAL, vmin=0, vmax=1,
-                    cbar=False, ax=extra_ax)
-        extra_ax.set_ylabel("")
-        extra_ax.set_xlabel("")
-        extra_ax.set_yticks([])
-        extra_ax.tick_params(axis="x", labelsize=7)
-        extra_ax.set_xticklabels(list(extra), rotation=30, ha="right", rotation_mode="anchor")
-        extra_ax.grid(False)
-        if extra_title:
-            extra_ax.set_title(extra_title, fontsize=8, pad=(26 if wrapped else 16) if multi else None)
-    save(fig, plot_name)
+        shares.loc[AVERAGE_ROW] = shares.iloc[1:].mean()
+
+    def render(name, compact):
+        """The heatmap, or with compact only the colors: no values, no row labels, small cells."""
+        # Fixed cell sizes, the labels around the cells extend the figure when it is saved (bbox_inches="tight")
+        if compact:
+            cell = HEATMAP_COMPACT_CELL
+            row_height = HEATMAP_COMPACT_GROUP_ROW_HEIGHT if row_groups else HEATMAP_COMPACT_ROW_HEIGHT
+            fontsize, line, separator = 6, 0.25, 2
+        else:
+            cell = max(text_width("+888", 6), text_width("100%", 6)) + HEATMAP_CELL_PADDING
+            row_height = HEATMAP_ROW_HEIGHT
+            fontsize, line, separator = 7, 0.5, 4
+        heat_width, height = cell * len(columns), row_height * len(table)
+        extra_width = cell * len(extra) + HEATMAP_EXTRA_GAP if extra else 0
+        width = heat_width + extra_width + HEATMAP_CBAR_GAP + HEATMAP_CBAR_WIDTH
+        fig = plt.figure(figsize=(width, height))
+        ax = fig.add_axes((0, 0, heat_width / width, 1))
+        if extra:
+            extra_ax = fig.add_axes(((heat_width + HEATMAP_EXTRA_GAP) / width, 0,
+                                     (extra_width - HEATMAP_EXTRA_GAP) / width, 1))
+        cbar_height = 0.5 if len(table) > 15 and not extra and not compact else 1
+        cbar_ax = fig.add_axes((1 - HEATMAP_CBAR_WIDTH / width, (1 - cbar_height) / 2, HEATMAP_CBAR_WIDTH / width,
+                                cbar_height))
+        sns.heatmap(table, annot=False if compact else annot, fmt="", annot_kws={"fontsize": 6}, linewidths=line,
+                    linecolor=SURFACE, ax=ax, cbar_ax=cbar_ax, cbar_kws=cbar_kws, xticklabels=True, yticklabels=not compact,
+                    **style)
+        cbar_ax.tick_params(labelsize=fontsize)
+        cbar_ax.yaxis.label.set_fontsize(fontsize + 1)
+        ax.set_ylabel("")
+        ax.set_xlabel("")
+        ax.tick_params(axis="y", labelsize=7)
+        ax.tick_params(axis="x", labelsize=fontsize)
+        ax.grid(False)
+        # One cell per group for the shared runs, over the cells of its rows, with the color of the value
+        mesh = ax.collections[0]
+        for column, start, count, labels, values in merged:
+            if values.empty:
+                continue
+            color = mesh.cmap(mesh.norm(values.iloc[0]))
+            x = columns.index(column)
+            ax.add_patch(Rectangle((x, start), 1, count, facecolor=color, edgecolor=SURFACE, linewidth=line))
+            if not labels.empty and not compact:
+                text = ".15" if sns.utils.relative_luminance(color) > 0.408 else "w"
+                ax.text(x + 0.5, start + count / 2, labels.iloc[0], ha="center", va="center", fontsize=6, color=text)
+        # The average row is set apart from the others, its label in bold, in the compact version the only row label
+        ax.axhline(1, color=SURFACE, linewidth=separator)
+        if compact:
+            ax.annotate(AVERAGE_ROW, xy=(0, 0.5), xycoords=("axes fraction", "data"), xytext=(-8 if row_groups else -4, 0),
+                        textcoords="offset points", ha="right", va="center", fontsize=fontsize + 1, color=TEXT,
+                        fontweight="bold", annotation_clip=False)
+        else:
+            ax.get_yticklabels()[0].set_fontweight("bold")
+        # The name of each group left of the row labels, with a bracket over its rows. A group with a single row of
+        # the same name needs none, unless the row labels are left out.
+        if row_groups:
+            if compact:
+                offset = 4
+            else:
+                renderer = fig.canvas.get_renderer()
+                offset = max(label.get_window_extent(renderer).width
+                             for label in ax.get_yticklabels()) * 72 / fig.dpi + 10
+            to_left = blended_transform_factory(ax.transAxes, ax.transData) + ScaledTranslation(-offset / 72, 0,
+                                                                                                fig.dpi_scale_trans)
+            for group, start, count in group_spans:
+                if count == 1 and table.index[start] == group and not compact:
+                    continue
+                inset = 0.2 if count > 1 or not compact else 0.1
+                ax.plot([0, 0], [start + inset, start + count - inset], color=TEXT_SECONDARY, linewidth=0.8,
+                        transform=to_left, clip_on=False)
+                ax.annotate(group, xy=(0, start + count / 2), xycoords=to_left, xytext=(-4, 0),
+                            textcoords="offset points", ha="right", va="center", fontsize=fontsize + 1, color=TEXT,
+                            annotation_clip=False)
+        # Labels of the columns at the top, right above the average row: rotated, vertical in the narrow compact cells
+        rotation = {"rotation": 90, "ha": "center", "va": "bottom"} if compact else {
+            "rotation": 45, "ha": "left", "va": "bottom", "rotation_mode": "anchor"}
+        ax.xaxis.tick_top()
+        ax.set_xticks(np.arange(len(columns)) + 0.5)
+        ax.set_xticklabels([column.split("\n")[-1] for column in columns], **rotation)
+        if extra:
+            sns.heatmap(shares, annot=False if compact else shares.map(lambda v: "" if np.isnan(v) else f"{v * 100:.0f}%"),
+                        fmt="", annot_kws={"fontsize": 6}, linewidths=line, linecolor=SURFACE, cmap=SEQUENTIAL, vmin=0,
+                        vmax=1, cbar=False, xticklabels=True, ax=extra_ax)
+            extra_ax.set_ylabel("")
+            extra_ax.set_xlabel("")
+            extra_ax.set_yticks([])
+            extra_ax.tick_params(axis="x", labelsize=fontsize)
+            extra_ax.xaxis.tick_top()
+            extra_ax.set_xticks(np.arange(len(extra)) + 0.5)
+            extra_ax.set_xticklabels(list(extra), **rotation)
+            extra_ax.axhline(1, color=SURFACE, linewidth=separator)
+            extra_ax.grid(False)
+        # Points from the top of the cells to the top of the column labels, the run names, the extra title and the
+        # title go above
+        renderer = fig.canvas.get_renderer()
+        labels_top = (max(label.get_window_extent(renderer).y1
+                          for axes in ([ax, extra_ax] if extra else [ax]) for label in axes.get_xticklabels())
+                      - ax.get_window_extent(renderer).y1) * 72 / fig.dpi
+
+        def header(axes, text, x):
+            axes.annotate(text, xy=(x, 1), xycoords=("data", "axes fraction"), xytext=(0, labels_top + 3),
+                          textcoords="offset points", ha="center", va="bottom", fontsize=fontsize + 1, color=TEXT,
+                          annotation_clip=False)
+
+        # Separate the runs and name them above their group of columns, the columns only name the backend
+        lines = 0
+        if multi:
+            position = 0
+            # If a run name is wider than its columns, all are wrapped to fit above them: at the commas, and in the
+            # narrow compact cells also at the spaces if that is not enough
+            too_wide = lambda text, names: max(text_width(line, fontsize + 1) for line in text.split("\n")) \
+                > cell * len(names) - 0.15
+            run_names = {run: run for run, _ in run_backends}
+            for separator_text in [", "] + ([" "] if compact else []):
+                if any(too_wide(name, names) and separator_text in name for (run, names), name
+                       in zip(run_backends, run_names.values())):
+                    run_names = {run: name.replace(separator_text, "\n") for run, name in run_names.items()}
+            lines = max(name.count("\n") + 1 for name in run_names.values())
+            for index, (run, names) in enumerate(run_backends):
+                if index:
+                    ax.axvline(position, color=SURFACE, linewidth=separator)
+                header(ax, run_names[run], position + len(names) / 2)
+                position += len(names)
+        if extra and extra_title:
+            # Next to the run names, wrapped if it is wider than the columns
+            text = extra_title
+            if text_width(text, fontsize + 1) > cell * len(extra) - 0.05:
+                text = text.replace(" (", "\n(") if " (" in text else text.replace(" ", "\n")
+            header(extra_ax, text, len(extra) / 2)
+            lines = max(lines, text.count("\n") + 1)
+        full_title = title + (" (change in %)" if relative else " (ms)")
+        pad = 6 + 10 * lines
+        if compact:
+            # The narrow cells are often less wide than the title: centered over the whole figure, above the run names
+            fig.suptitle(full_title, y=1 + (labels_top + pad + 4) / 72 / height, va="bottom", fontweight="bold")
+        else:
+            # Above the column labels of the heatmap, which matplotlib accounts for by itself
+            ax.set_title(full_title, pad=pad + max(0.0, labels_top - (
+                max(label.get_window_extent(renderer).y1 for label in ax.get_xticklabels())
+                - ax.get_window_extent(renderer).y1) * 72 / fig.dpi))
+        save(fig, name)
+
+    render(plot_name, compact=False)
+    render(f"{plot_name}_compact", compact=True)
 
 
 def relative_to_own_baseline(pairs, baseline):
