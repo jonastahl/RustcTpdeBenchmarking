@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib import font_manager  # noqa: E402
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -22,7 +23,7 @@ from src.benchmarks import LLVM_PASS_VARIANTS
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = ROOT / "results"
 
-SURFACE = "#fcfcfb"
+SURFACE = "#ffffff"
 TEXT = "#0b0b0b"
 TEXT_SECONDARY = "#52514e"
 GRID = "#e4e3df"
@@ -59,11 +60,19 @@ def variant_color(name):
     return VARIANT_COLORS.get(name, NEUTRAL)
 
 
+for path in font_manager.findSystemFonts():
+    if Path(path).stem.lower() in {f"{family}-{style}" for family in ["texgyrepagella", "p052"]
+                                   for style in ["regular", "roman", "bold", "italic", "bolditalic"]}:
+        font_manager.fontManager.addfont(path)
+
 plt.rcParams.update({
     "figure.facecolor": SURFACE,
     "axes.facecolor": SURFACE,
     "savefig.facecolor": SURFACE,
     "font.size": 9,
+    "font.family": "serif",
+    "font.serif": ["TeX Gyre Pagella", "P052", "DejaVu Serif"],
+    "pdf.fonttype": 3,
     "text.color": TEXT,
     "axes.titlesize": 10,
     "axes.titleweight": "bold",
@@ -90,8 +99,10 @@ def ordered(names):
 
 def save(fig, name):
     RESULTS_DIR.mkdir(exist_ok=True)
+    fig.savefig(RESULTS_DIR / f"{name}.pdf", bbox_inches="tight")
     fig.savefig(RESULTS_DIR / f"{name}.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
+    print(f"Graph: {RESULTS_DIR / name}.pdf")
     print(f"Graph: {RESULTS_DIR / name}.png")
 
 
