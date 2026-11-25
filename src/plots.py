@@ -1,4 +1,5 @@
 import math
+import re
 import statistics
 from collections import defaultdict
 from pathlib import Path
@@ -92,6 +93,27 @@ def save(fig, name):
     fig.savefig(RESULTS_DIR / f"{name}.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"Graph: {RESULTS_DIR / name}.png")
+
+
+SINGLE_RESULTS = ROOT / "single_results.tex"
+
+
+def save_result(key, value):
+    """Saves a single value for the thesis in results/single_results.tex, where \\result{key} prints it. The value is
+    written as it is (a string is LaTeX, e.g. r"9.1\\,\\%"). The other keys in the file are kept, the same key is
+    overwritten."""
+    if not re.fullmatch(r"[\w.:+-]+", key):
+        raise ValueError(f"Result key {key!r} may only contain letters, digits and _ . : + -")
+    results = {}
+    if SINGLE_RESULTS.exists():
+        for line in SINGLE_RESULTS.read_text().splitlines():
+            match = re.fullmatch(r"\\resultdef\{(.*?)\}\{(.*)\}", line)
+            if match:
+                results[match[1]] = match[2]
+    results[key] = str(value)
+    RESULTS_DIR.mkdir(exist_ok=True)
+    SINGLE_RESULTS.write_text("".join(f"\\resultdef{{{key}}}{{{value}}}\n" for key, value in sorted(results.items())))
+    print(f"Result {key}: {value}")
 
 
 def median_of_series(series):

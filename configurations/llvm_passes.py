@@ -3,11 +3,12 @@ src.benchmarks.LLVM_PASS_VARIANTS on the runtime benchmarks, like compiletime_vs
 
 `python3 -m configurations.llvm_passes` prints the passes of the O1 pipeline, from which the variants take the
 parameters of their passes."""
+import statistics
 from pathlib import Path
 
 from src.benchmarks import RT_PREFIX, runtime_benchmark_groups, LLVM_PASS_OPTIMIZATIONS
 from src.helper import run_task
-from src.plots import generate_compile_runtime_heatmap
+from src.plots import generate_compile_runtime_heatmap, save_result
 from src.runs import BackendTime, Runtime
 
 VARIANTS = ["LLVM", "LLVM O1", *LLVM_PASS_OPTIMIZATIONS]
@@ -32,6 +33,15 @@ def evaluate(results):
         generate_compile_runtime_heatmap(f"llvm_passes{suffix}_heatmap",
                                          f"LLVM passes: backend compile time and runtime relative to LLVM -O0, {setting}",
                                          [compiletime], [runtime], [""], runtime_benchmark_groups(), prefix=RT_PREFIX)
+
+        for variant in VARIANTS[1:]:
+            if variant not in runtime:
+                continue
+            ratios = [statistics.median(samples) / statistics.median(runtime["LLVM"][benchmark])
+                      for benchmark, samples in runtime[variant].items() if benchmark in runtime["LLVM"]]
+            change = (statistics.geometric_mean(ratios) - 1) * 100
+            save_result(f"passes_rt_{variant.replace(' ', '_')}{suffix}",
+                        f"{change:+.1f}".replace("-", "$-$") + r"\,\%")
 
 
 TOOLCHAIN = "+nightly-2026-10-28"
