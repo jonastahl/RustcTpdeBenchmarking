@@ -75,7 +75,7 @@ EX_RUNTIME_TESTS = ["css"]
 
 # sort out everything with stdev > 10% of runtime
 EX_COMPILE_TESTS = [*EX_COMPILE_TESTS, "await-call-tree", "helloworld", "next-solver-stress", "token-stream-stress", "unify-linearly", "wf-projection-stress-65510"]
-EX_RUNTIME_TESTS = [*EX_RUNTIME_TESTS, "argc_decrement", "arc_deref", "arc_deref_slice", "arc_increment", "issue-58319", "next-solver-stress", "rc_decrement", "rc_deref", "rc_deref_slice", "rc_increment"]
+EX_RUNTIME_TESTS = [*EX_RUNTIME_TESTS, "argc_decrement", "arc_deref", "arc_deref_slice", "arc_increment", "derive-stress", "next-solver-stress", "rc_decrement", "rc_deref", "rc_deref_slice", "rc_increment"]
 
 # The runtime benchmark groups are also copied to the compile-time benchmarks (see src.setup), as rt-<group>, so that the
 # compile time and runtime of the same code can be compared. They are only part of the compile-time runs of the
