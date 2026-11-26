@@ -21,21 +21,25 @@ LLVM_PASS_SECTIONS = {
                                "-Cllvm-args=-regalloc=greedy"]),
 }
 
-SIMPLIFYCFG_MIN = "simplifycfg<bonus-inst-threshold=0;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;no-keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;no-speculate-blocks;no-simplify-cond-branch;no-speculate-unpredictables>"
-SIMPLIFYCFG_O1 = "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>"
+SIMPLIFYCFG_MIN = "simplifycfg<bonus-inst-threshold=0;no-forward-switch-cond;no-switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;no-speculate-blocks;no-simplify-cond-branch;no-speculate-unpredictables>"
+SIMPLIFYCFG_O1 = "simplifycfg<bonus-inst-threshold=1;no-forward-switch-cond;switch-range-to-icmp;no-switch-to-arithmetic;no-switch-to-lookup;keep-loops;no-hoist-common-insts;no-hoist-loads-stores-with-cond-faulting;no-sink-common-insts;speculate-blocks;simplify-cond-branch;no-speculate-unpredictables>"
 
 LLVM_PASS_OPTIMIZATIONS = {
     "inline": ("cgscc(inline)", []),
 
-    "inline+mem2reg": ("cgscc(inline,function(mem2reg))", []),
-    "inline+sroa": ("cgscc(inline,function(sroa<modify-cfg>))", []),
-    "inline+memcpyopt": ("cgscc(inline,function(memcpyopt))", [], ),
+    "inl+mem2reg": ("cgscc(inline,function(mem2reg))", []),
+    "inl+sroa": ("cgscc(inline,function(sroa<modify-cfg>))", []),
+    "inl+memcpyopt": ("cgscc(inline,function(memcpyopt))", [], ),
 
-    "inline+sroa+instsimplify": ("cgscc(inline,function(sroa<modify-cfg>,instsimplify))", []),
-    "inline+sroa+sccp": ("cgscc(inline,function(sroa<modify-cfg>,sccp))", []),
+    "inl+sroa+instsimplify": ("cgscc(inline,function(sroa<modify-cfg>,instsimplify))", []),
+    "inl+sroa+sccp": ("cgscc(inline,function(sroa<modify-cfg>,sccp))", []),
 
-    "inline+sroa+sccp+simplifycfg_min": (f"cgscc(inline,function(sroa<modify-cfg>,sccp,{SIMPLIFYCFG_MIN}))", [], ),
-    "inline+sroa+sccp+simplifycfg_o1": (f"cgscc(inline,function(sroa<modify-cfg>,sccp,{SIMPLIFYCFG_O1}))", []),
+    "inl+sroa+sccp+simplifycfg_min": (f"cgscc(inline,function(sroa<modify-cfg>,sccp,{SIMPLIFYCFG_MIN}))", [],),
+    "inl+sroa+sccp+simplifycfg_o1": (f"cgscc(inline,function(sroa<modify-cfg>,sccp,{SIMPLIFYCFG_O1}))", []),
+
+    "inl+m2r+sccp+simplifycfg_min": (f"cgscc(inline,function(mem2reg,sccp,{SIMPLIFYCFG_MIN}))", [],),
+    "inl+sroa+instsimp+simplifycfg_min": (f"cgscc(inline,function(sroa<modify-cfg>,instsimplify,{SIMPLIFYCFG_MIN}))",
+                                          [],),
 }
 
 LLVM_PASS_VARIANTS = {
