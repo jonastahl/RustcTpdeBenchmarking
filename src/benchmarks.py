@@ -155,9 +155,16 @@ def compiletime_suffix(cgu=None, cores=None, threads=None, suite="compile"):
             + (f" {threads} threads" if threads else "")
             + (f" {cores} cores" if cores else ""))
 
-def select(results, variants):
-    """Only the results of the given variants, other ones might stem from earlier runs on the same database."""
-    return results if variants is None else {name: results[name] for name in variants if name in results}
+def is_excluded(benchmark, excluded):
+    """Whether one of the excluded names is a prefix of the benchmark, the way the collector matches --exclude."""
+    return benchmark.startswith(tuple(excluded))
+
+def select(results, variants, excluded=()):
+    """Only the results of the given variants, other ones might stem from earlier runs on the same database, and
+    without the excluded benchmarks (is_excluded), which earlier runs might have measured before they were excluded."""
+    selected = results if variants is None else {name: results[name] for name in variants if name in results}
+    return {name: {benchmark: samples for benchmark, samples in series.items() if not is_excluded(benchmark, excluded)}
+            for name, series in selected.items()}
 
 def parse_results(output):
     """Parse the csv output of the results query into {compiler: {benchmark: samples}} in seconds.
@@ -238,8 +245,9 @@ def read_wall_time(db):
     return parse_results(output)
 
 def compiletime_results(db="results.db", suffix = "", baseline=BASELINE, transpose=False, variants=None):
-    """Prints and returns {variant: {benchmark: samples}} in seconds, only of the given variants if not None."""
-    results = select(read_wall_time(db), variants)
+    """Prints and returns {variant: {benchmark: samples}} in seconds, only of the given variants if not None and
+    without EX_COMPILE_TESTS."""
+    results = select(read_wall_time(db), variants, EX_COMPILE_TESTS)
     print_table(results, f"Compiletime (wall-time){suffix}", baseline, transpose)
     return results
 
@@ -293,17 +301,21 @@ def runtime_results(db="results.db", suffix="", baseline=BASELINE, transpose=Fal
              ],
              cwd="deps/rustc-perf")
 
-    results = select(parse_results(output), variants)
+    results = select(parse_results(output), variants, EX_RUNTIME_TESTS)
     print_table(results, f"Runtime{suffix}", baseline, transpose)
     return results
 
 def runtime_benchmark_groups():
-    """{group: [benchmark]} of the runtime benchmarks that aren't excluded, read from the names their source registers."""
+    """{group: [benchmark]} of the runtime benchmarks that aren't excluded, read from the names their source registers.
+    A group is left out if it is excluded itself or all of its benchmarks are (EX_RUNTIME_TESTS, is_excluded)."""
     groups = {}
     for manifest in sorted(RUNTIME_BENCH_ROOT.glob("*/Cargo.toml")):
         group = manifest.parent.name
         if group in EX_RUNTIME_TESTS:
             continue
         sources = "".join(path.read_text() for path in (manifest.parent / "src").rglob("*.rs"))
-        groups[group] = re.findall(r'register_benchmark\(\s*"([^"]+)"', sources)
+        benchmarks = [name for name in re.findall(r'register_benchmark\(\s*"([^"]+)"', sources)
+                      if not is_excluded(name, EX_RUNTIME_TESTS)]
+        if benchmarks:
+            groups[group] = benchmarks
     return groups

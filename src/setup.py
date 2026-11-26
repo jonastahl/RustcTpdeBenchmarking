@@ -98,8 +98,17 @@ def build_tpde_lib():
              ["cargo", "build", "--release"],
              "deps/RustcTpde")
 
-# The self-profile results and target dirs in a benchmark (src.self_profile), kept when copying
-SELF_PROFILE_DIRS = ("prof-", "target-prof-")
+# The self-profile results in a benchmark (src.self_profile), kept when copying
+SELF_PROFILE_DIRS = ("prof-",)
+# Target dirs that earlier versions of src.self_profile left in the benchmarks. The collector copies a benchmark with
+# everything in it for every compile-time run, which fills the disk with these.
+STALE_TARGET_DIRS = ("target-prof-", "target-ir-size")
+
+
+def remove_stale_target_dirs():
+    for stale in COMPILE_BENCH_ROOT.glob("*/*"):
+        if stale.is_dir() and stale.name.startswith(STALE_TARGET_DIRS):
+            shutil.rmtree(stale)
 
 
 def copy_runtime_benchmarks():
@@ -164,6 +173,7 @@ def run_setup(rebuild=False):
              ["cargo", "build", "--release", "-p", "collector"],
              "deps/rustc-perf")
 
+    remove_stale_target_dirs()
     copy_runtime_benchmarks()
 
     # Install measureme for results of self perf (summarize) and the flamegraph of it

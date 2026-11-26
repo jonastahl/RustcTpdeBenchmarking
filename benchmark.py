@@ -13,8 +13,8 @@ import importlib
 import shutil
 from pathlib import Path
 
-from src.benchmarks import (compiletime_db, compiletime_results, compiletime_suffix, run_compiletime_benchmark,
-                            run_runtime_benchmark, runtime_db, runtime_results, runtime_suffix, variant_config)
+from src.benchmarks import (EX_COMPILE_TESTS, compiletime_db, compiletime_results, compiletime_suffix,
+                            run_compiletime_benchmark, run_runtime_benchmark, runtime_db, runtime_results, runtime_suffix, variant_config)
 from src.helper import TMP_DIR
 from src.runs import BackendTime, CompileTime, Runtime, SelfProfile
 from src.sections import section_results
@@ -87,7 +87,8 @@ class Jobs:
                 for key, variants in self.compiletime.items()
             },
             "backend": {
-                key: section_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key), variants=variants)
+                key: section_results(db=compiletime_db(*key), suffix=compiletime_suffix(*key), variants=variants,
+                                     excluded=EX_COMPILE_TESTS)
                 for key, variants in self.compiletime.items()
             },
             "runtime": {cgu: runtime_results(db=runtime_db(cgu), suffix=runtime_suffix(cgu), variants=variants)

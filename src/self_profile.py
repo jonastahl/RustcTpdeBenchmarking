@@ -194,6 +194,12 @@ def summarize(description, profile):
         times[cells[0].rstrip(" .")] = parse_seconds(cells[3])
     return times, total, artifacts
 
+def drop_raw_profiles(iteration):
+    """Removes the raw self-profiles of an iteration once its summary exists, nothing else reads them."""
+    if (iteration / SUMMARY_FILE).exists():
+        for profile in iteration.glob("*.mm_profdata"):
+            profile.unlink()
+
 def iteration_summary(description, iteration):
     """The summarized self-profiles of all crates of one iteration: {"profiles": [file names], "total": seconds,
     "times": {event: seconds}, "artifacts": {name: bytes}}, the times and sizes summed over all crates.
@@ -244,7 +250,7 @@ def cargo_build(benchmark, target_dir):
     rustc_opts = config.get("cargo_rustc_opts", "").split()
     return ["cargo", TOOLCHAIN, "rustc",
             "--target", TARGET,
-            "--target-dir", target_dir.name,
+            "--target-dir", str(target_dir),
             *config.get("cargo_opts", "").split(),
             *(["--", *rustc_opts] if rustc_opts else [])]
 
@@ -257,7 +263,8 @@ def measure_llvm_ir(benchmark):
     if not iterations(benchmark, IR_SIZE_LLVM) or (prof_dir / IR_SIZE_FILE).exists():
         return
 
-    target_dir = bench_dir / "target-ir-size"
+    # Outside the benchmark, which the collector copies with everything in it for every compile-time run
+    target_dir = Path(TMP_DIR) / f"target-ir-size-{benchmark}"
     shutil.rmtree(target_dir, ignore_errors=True)
     output = run_task(f"Build {benchmark} with LLVM IR files",
                       [
@@ -295,7 +302,9 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
     for name in backends:
         backend = BACKENDS[name]
         key = backend_key(name)
-        target_dir = bench_dir / f"target-prof-{key}"
+        # Outside the benchmark, which the collector copies with everything in it for every compile-time run. Only
+        # needed during an iteration, the profiles are written to prof_dir.
+        target_dir = Path(TMP_DIR) / f"target-prof-{benchmark}-{key}"
         prof_dir = bench_dir / f"prof-{key}"
 
         if rerun is True or (callable(rerun) and rerun(name)):
@@ -307,6 +316,7 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
             if iteration_dir.exists():
                 # Iterations of runs before the summaries existed
                 iteration_summary(description, iteration_dir)
+                drop_raw_profiles(iteration_dir)
                 continue
 
             # Profile into a separate dir first, so that an interrupted iteration isn't mistaken for a completed one
@@ -337,6 +347,8 @@ def run_self_profile(benchmark, backends, ir_size=False, rerun=False):
                 break
             iteration_summary(description, partial_dir)
             partial_dir.rename(iteration_dir)
+            drop_raw_profiles(iteration_dir)
+        shutil.rmtree(target_dir, ignore_errors=True)
 
     if ir_size:
         measure_llvm_ir(benchmark)

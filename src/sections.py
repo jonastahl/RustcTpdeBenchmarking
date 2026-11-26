@@ -114,12 +114,13 @@ def remove_sections(db, variant=None):
         file.write_text(json.dumps(stored, indent=1))
 
 
-def section_results(db="results.db", suffix="", section=CODEGEN, baseline="LLVM", variants=None):
+def section_results(db="results.db", suffix="", section=CODEGEN, baseline="LLVM", variants=None, excluded=()):
     """Prints and returns {variant: {benchmark: samples}} in seconds of one section, only of the given variants if not
-    None."""
+    None and without the benchmarks that one of the excluded names is a prefix of (like src.benchmarks.is_excluded)."""
     file = sections_file(db)
     stored = json.loads(file.read_text()) if file.exists() else {}
-    results = {variant: {benchmark: sections[section] for benchmark, sections in series.items() if section in sections}
+    results = {variant: {benchmark: sections[section] for benchmark, sections in series.items()
+                         if section in sections and not benchmark.startswith(tuple(excluded))}
                for variant, series in stored.items() if variants is None or variant in variants}
     print_table(results, f"Section {section} (wall-time){suffix}", baseline)
     return results
