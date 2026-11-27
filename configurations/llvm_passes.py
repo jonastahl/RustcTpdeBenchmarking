@@ -6,42 +6,33 @@ parameters of their passes."""
 import statistics
 from pathlib import Path
 
-from src.benchmarks import RT_PREFIX, runtime_benchmark_groups, LLVM_PASS_OPTIMIZATIONS
+from src.benchmarks import RT_PREFIX, LLVM_PASS_OPTIMIZATIONS
 from src.helper import run_task
-from src.plots import generate_compile_runtime_heatmap, save_result
-from src.runs import BackendTime, Runtime
+from src.plots import save_result, generate_heatmap
+from src.runs import Runtime
 
 VARIANTS = ["LLVM", "IR-O1", *LLVM_PASS_OPTIMIZATIONS]
 
-# None is the default of the dev profile, 256 codegen units
-CGUS = [None]
-
-
 def get_config():
     return [
-        *[BackendTime(VARIANTS, cgu=cgu, suite="runtime") for cgu in CGUS],
-        *[Runtime(VARIANTS, cgu=cgu) for cgu in CGUS],
+        Runtime(VARIANTS),
     ]
 
 
 def evaluate(results):
     runs = get_config()
-    compiletimes, runtimes = results[:len(CGUS)], results[len(CGUS):]
-    settings = [run.short_name() for run in runs[len(CGUS):]]
-    for setting, compiletime, runtime in zip(settings, compiletimes, runtimes):
-        suffix = f"_cgu{setting.split()[0]}" if len(CGUS) > 1 else ""
-        generate_compile_runtime_heatmap(f"llvm_passes{suffix}_heatmap",
-                                         f"LLVM passes: backend compile time and runtime relative to LLVM -O0, {setting}",
-                                         [compiletime], [runtime], [""], runtime_benchmark_groups(), prefix=RT_PREFIX)
 
-        for variant in VARIANTS[1:]:
-            if variant not in runtime:
-                continue
-            ratios = [statistics.median(samples) / statistics.median(runtime["LLVM"][benchmark])
-                      for benchmark, samples in runtime[variant].items() if benchmark in runtime["LLVM"]]
-            change = (statistics.geometric_mean(ratios) - 1) * 100
-            save_result(f"passes_rt_{variant.replace(' ', '_')}{suffix}",
-                        f"{change:+.1f}".replace("-", "$-$") + r"\,\%")
+    generate_heatmap(f"llvm_passes_heatmap",
+                     f"LLVM passes: runtime relative to LLVM -O0",
+                     results, runs)
+
+    results = results[0]
+    for variant in VARIANTS[1:]:
+        ratios = [statistics.median(samples) / statistics.median(results["LLVM"][benchmark])
+                  for benchmark, samples in results[variant].items() if benchmark in results["LLVM"]]
+        change = (statistics.geometric_mean(ratios) - 1) * 100
+        save_result(f"passes_rt_{variant.replace(' ', '_')}",
+                    f"{change:+.1f}".replace("-", "$-$") + r"\,\%")
 
 
 TOOLCHAIN = "+nightly-2026-10-28"
